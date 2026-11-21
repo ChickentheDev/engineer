@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engineer — voxel engine sandbox</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e12; color: #d8dce2;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 14px;
+  }
+  h1 { font-size: 20px; letter-spacing: 0.04em; }
+  h1 span { color: #8a919e; font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .wrap { max-width: 1020px; margin: 0 auto; }
+  #sim {
+    display: block; width: 100%; max-width: 1000px; aspect-ratio: 200 / 120;
+    background: #101218; border: 1px solid #2a2e38; border-radius: 6px;
+    cursor: crosshair; touch-action: none; margin: 12px 0 8px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+  .label { color: #8a919e; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; }
+  button {
+    background: #1a1e27; color: #d8dce2; border: 1px solid #2a2e38;
+    border-radius: 5px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: #4a5060; }
+  button.selected { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  .swatch::before {
+    content: ""; display: inline-block; width: 11px; height: 11px;
+    background: var(--c); border-radius: 2px; margin-right: 6px;
+    vertical-align: -1px; border: 1px solid rgba(255,255,255,0.25);
+  }
+  input[type="range"] { accent-color: #2b6cb0; }
+  #brushVal { min-width: 18px; text-align: center; font-size: 13px; }
+  #readout { font-size: 13px; color: #9aa3b2; min-height: 18px; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: #6b7280; margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ENGINEER <span>voxel engine sandbox — Stage 1: materials, heat, pressure</span></h1>
+  <canvas id="sim"></canvas>
+  <div id="readout"></div>
+  <div class="row"><span class="label">Material</span><span id="palette" class="row" style="margin:0"></span></div>
+  <div class="row">
+    <span class="label">Tool</span>
+    <button data-tool="paint" class="selected">Paint</button>
+    <button data-tool="heat">Heat</button>
+    <button data-tool="cool">Cool</button>
+    <button data-tool="ignite">Ignite</button>
+    <button data-tool="erase">Erase</button>
+    <span class="label" style="margin-left:10px">Brush</span>
+    <input type="range" id="brush" min="1" max="10" value="4">
+    <span id="brushVal">4</span>
+  </div>
+  <div class="row">
+    <span class="label">View</span>
+    <button data-view="normal" class="selected">Normal</button>
+    <button data-view="heat">Temperature</button>
+    <button data-view="pressure">Pressure</button>
+    <span style="flex:1"></span>
+    <button id="furnaceBtn">Preset: Furnace test</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+  <p class="hint">Paint materials, then heat them, ignite fuel, or light gunpowder. Steel melts at 1500°C, copper at 1085°C, ceramic takes the heat but shatters under pressure. Heat and Pressure views show the sim fields. Moving parts, airflow, and engines come in later stages.</p>
+</div>
+<script src="js/materials.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
