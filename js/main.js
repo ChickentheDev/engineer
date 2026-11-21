@@ -167,6 +167,10 @@ document.getElementById("pauseBtn").onclick = (e) => {
   sim.running = !sim.running;
   e.target.textContent = sim.running ? "Pause" : "Play";
 };
+document.getElementById("zoomBtn").onclick = (e) => {
+  const zoomed = canvas.classList.toggle("zoomed");
+  e.target.textContent = zoomed ? "Zoom 1x" : "Zoom 2x";
+};
 document.getElementById("clearBtn").onclick = () => sClear();
 document.getElementById("furnaceBtn").onclick = () => sPresetFurnace();
 

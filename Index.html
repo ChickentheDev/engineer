@@ -11,23 +11,36 @@
     background: #0c0e12; color: #d8dce2;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     padding: 14px;
+    overscroll-behavior: none;
   }
   h1 { font-size: 20px; letter-spacing: 0.04em; }
   h1 span { color: #8a919e; font-weight: 400; font-size: 13px; margin-left: 8px; }
+  h1 .ver { color: #5b8dd9; font-weight: 600; }
   .wrap { max-width: 1020px; margin: 0 auto; }
   #sim {
     display: block; width: 100%; max-width: 1000px; aspect-ratio: 200 / 120;
     background: #101218; border: 1px solid #2a2e38; border-radius: 6px;
     cursor: crosshair; touch-action: none; margin: 12px 0 8px;
+    image-rendering: pixelated;
+    -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
   }
+  #sim.zoomed { width: 200%; max-width: none; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
   .label { color: #8a919e; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; }
   button {
     background: #1a1e27; color: #d8dce2; border: 1px solid #2a2e38;
     border-radius: 5px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+    touch-action: manipulation;
+    -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
   }
   button:hover { border-color: #4a5060; }
   button.selected { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  /* Touch screens: bigger targets so fingers can actually hit them. */
+  @media (pointer: coarse) {
+    button { min-height: 44px; padding: 10px 14px; font-size: 15px; }
+    .swatch::before { width: 14px; height: 14px; }
+    input[type="range"] { min-height: 44px; }
+  }
   .swatch::before {
     content: ""; display: inline-block; width: 11px; height: 11px;
     background: var(--c); border-radius: 2px; margin-right: 6px;
@@ -41,7 +54,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>ENGINEER <span>voxel engine sandbox — Stage 1: materials, heat, pressure</span></h1>
+  <h1>ENGINEER <span class="ver">v0.1</span> <span>voxel engine sandbox — Stage 1: materials, heat, pressure</span></h1>
   <canvas id="sim"></canvas>
   <div id="readout"></div>
   <div class="row"><span class="label">Material</span><span id="palette" class="row" style="margin:0"></span></div>
@@ -63,6 +76,7 @@
     <button data-view="pressure">Pressure</button>
     <span style="flex:1"></span>
     <button id="furnaceBtn">Preset: Furnace test</button>
+    <button id="zoomBtn">Zoom 2x</button>
     <button id="pauseBtn">Pause</button>
     <button id="clearBtn">Clear</button>
   </div>

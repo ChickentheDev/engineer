@@ -8,7 +8,7 @@ when you push them past their tolerances.
 Play it in the browser: open `Index.html` (or GitHub Pages once enabled).
 No build step, no dependencies — plain canvas + JavaScript.
 
-## Stage 1 (done)
+## v0.1 (Stage 1)
 
 - Grid sim: 200×120 cells, powders fall, liquids flow, gases rise
 - Heat: conduction between neighbours, ambient cooling, hot materials glow
@@ -18,6 +18,8 @@ No build step, no dependencies — plain canvas + JavaScript.
   Molten Glass, Water, Steam, Fuel, Wood, Ash, Ice, Fire, Smoke, Gunpowder
 - Tools: paint, heat, cool, ignite, erase; brush size; Normal / Temperature /
   Pressure views; pause; clear; "Furnace test" preset
+- Mobile: touch painting, 44px touch targets, 2x canvas zoom for precise
+  finger painting; play it at https://chickenthedev.github.io/engineer/
 
 ## Next stages
 
