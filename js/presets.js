@@ -25,10 +25,12 @@
 //    slower than the engine burns, so levels visibly fall while firing.
 //
 // All coordinates are RELATIVE (fractions of SIM_W / SIM_H for position)
-// with ABSOLUTE cell sizes for critical parts (chamber ~20 cells, bell
-// throat 2 cells, exit ~8 cells), so presets fit both desktop
-// (800x~482) and iPhone portrait (~374x800). Materials are looked up
-// by NAME via MAT — never hardcode an id, ids shift between stages.
+// with ABSOLUTE cell sizes for critical parts (I4 chamber 40 cells,
+// rocket chamber 72, bell throat 6, exit 24; turbofan 300 long), so
+// presets fit both desktop (800x~482) and iPhone portrait (~374x800).
+// The phone grid is the binding constraint: 2x I4 / 2x turbofan / 3x
+// rocket is as big as fits with margin on 374 wide. Materials are
+// looked up by NAME via MAT — never hardcode an id, ids shift between stages.
 
 var sActivePreset = null;   // current preset id, or null
 var presetState = null;     // per-preset runtime state (see each build())
@@ -193,7 +195,7 @@ function buildFurnace() {
 // chambers are the cylinders, the firing order + turbo spool are real.
 function buildI4() {
   const steel = pMat("Steel");
-  const CW = 20, CH = 22, GAP = 6;
+  const CW = 40, CH = 44, GAP = 12;
   const totalW = 4 * CW + 3 * GAP;
   const x0 = Math.floor(SIM_W / 2 - totalW / 2);
   const yTop = Math.floor(SIM_H * 0.38), yBot = yTop + CH;
@@ -202,65 +204,65 @@ function buildI4() {
     const cx0 = x0 + c * (CW + GAP), cx1 = cx0 + CW;
     pBox(cx0, yTop, cx1, yBot, steel);
     const vx = Math.floor((cx0 + cx1) / 2);
-    sSet(vx, yTop, 0); sSet(vx + 1, yTop, 0); // roof vent, 2 cells
+    for (let k = 0; k < 4; k++) sSet(vx + k, yTop, 0); // roof vent, 4 cells
     chambers.push({
       x0: cx0 + 1, y0: yTop + 1, x1: cx1 - 1, y1: yBot - 1,
       cx: vx, cy: Math.floor((yTop + yBot) / 2), ventY: yTop,
     });
   }
-  // Exhaust manifold: 3-row duct sitting on the chamber roofs, with a
-  // hole in its floor above each vent. Top wall yTop-5, interior
-  // yTop-4..yTop-2, floor yTop-1.
-  // The duct walls STOP at the turbine housing's left wall (turbX-9):
+  // Exhaust manifold: 8-row duct sitting on the chamber roofs, with a
+  // hole in its floor above each vent. Top wall yTop-10, interior
+  // yTop-9..yTop-2, floor yTop-1.
+  // The duct walls STOP at the turbine housing's left wall (turbX-17):
   // they must not run through the housing. The manifold walls cross
-  // the housing at rows mCy±2, exactly where the turbine's blade arms
+  // the housing at rows mCy±8, exactly where the turbine's blade arms
   // reach — if the walls touch the arms, sBindRotors floods the whole
   // connected steel structure into the rotor (measured: 650 cells,
-  // I=2.9M instead of 24 blades, I=256) and the wheel can never turn.
+  // I=2.9M instead of the 41-cell wheel) and the wheel can never turn.
   // The duct interior stays open into the housing through its left
   // wall openings, so gas still flows in.
-  const mCy = yTop - 3;
-  const turbX = x0 + totalW + 18;
-  for (let x = x0 - 2; x <= turbX - 9; x++) {
-    sSet(x, yTop - 5, steel);
+  const mCy = yTop - 5;
+  const turbX = x0 + totalW + 36;
+  for (let x = x0 - 2; x <= turbX - 17; x++) {
+    sSet(x, yTop - 10, steel);
     sSet(x, yTop - 1, steel);
   }
-  for (const ch of chambers) { sSet(ch.cx, yTop - 1, 0); sSet(ch.cx + 1, yTop - 1, 0); }
-  // Intake plenum: 3-row duct under the row, open at the left end.
+  for (const ch of chambers) for (let k = 0; k < 4; k++) sSet(ch.cx + k, yTop - 1, 0);
+  // Intake plenum: 7-row duct under the row, open at the left end.
   // Same rule: its walls stop at the compressor housing's left wall.
-  const pCy = yBot + 6;
-  for (let x = x0 - 2; x <= turbX - 9; x++) {
-    sSet(x, yBot + 4, steel);
+  const pCy = yBot + 12;
+  for (let x = x0 - 2; x <= turbX - 17; x++) {
     sSet(x, yBot + 8, steel);
+    sSet(x, yBot + 16, steel);
   }
-  sSet(x0 - 2, pCy - 1, 0); sSet(x0 - 2, pCy, 0); sSet(x0 - 2, pCy + 1, 0);
+  for (let k = -2; k <= 2; k++) sSet(x0 - 2, pCy + k, 0);
   // Turbo unit at the right end: turbine housing on the manifold line,
   // compressor housing on the plenum line, one shaft between them.
-  pBox(turbX - 8, mCy - 8, turbX + 8, mCy + 8, steel);
-  pBox(turbX - 8, pCy - 8, turbX + 8, pCy + 8, steel);
-  for (let k = -1; k <= 1; k++) {
-    sSet(turbX - 8, mCy + k, 0); sSet(turbX + 8, mCy + k, 0); // turbine in/out
-    sSet(turbX - 8, pCy + k, 0); sSet(turbX + 8, pCy + k, 0); // compressor in/out
+  pBox(turbX - 16, mCy - 16, turbX + 16, mCy + 16, steel);
+  pBox(turbX - 16, pCy - 16, turbX + 16, pCy + 16, steel);
+  for (let k = -2; k <= 2; k++) {
+    sSet(turbX - 16, mCy + k, 0); sSet(turbX + 16, mCy + k, 0); // turbine in/out
+    sSet(turbX - 16, pCy + k, 0); sSet(turbX + 16, pCy + k, 0); // compressor in/out
   }
-  const turbine = pMakeRotor(turbX, mCy, 4);
-  const comp = pMakeRotor(turbX, pCy, 4);
+  const turbine = pMakeRotor(turbX, mCy, 8);
+  const comp = pMakeRotor(turbX, pCy, 8);
   // Impulse drive for the turbine (the demo's feed mechanism): the
   // exhaust jet is ducted onto the upper arm ONLY — a narrow strip
-  // just left of it (2 wide, 5 tall). A quadrant feed cancels exactly:
+  // just left of it (4 wide, 9 tall). A quadrant feed cancels exactly:
   // pressure on the upper arm's left face (+4q per face) is matched
   // by pressure on the left arm's up face (-4q per face), measured
   // w = 0.000 with a quadrant feed. A symmetric pressure gives no
   // net torque at all. The strip pushes only the upper arm's left
   // faces (and the tip), so the torque is one-signed. Gated on
   // manifold pressure in tickI4, so the wheel only spins on exhaust.
-  const feed = { x0: turbX - 2, y0: mCy - 6, x1: turbX - 1, y1: mCy - 2 };
+  const feed = { x0: turbX - 4, y0: mCy - 12, x1: turbX - 1, y1: mCy - 4 };
   return {
     chambers: chambers, order: [0, 2, 3, 1], fireIdx: 0,
     nextFire: sim.tick + 5, fireLog: [],
     turbine: turbine, comp: comp, turbX: turbX, mCy: mCy, pCy: pCy,
     feed: feed,
     manifoldP: 0, // exhaust manifold pressure at the turbine inlet
-    plenum: { x0: x0 - 1, y0: yBot + 5, x1: turbX - 9, y1: yBot + 7 },
+    plenum: { x0: x0 - 1, y0: yBot + 9, x1: turbX - 17, y1: yBot + 15 },
   };
 }
 
@@ -268,19 +270,18 @@ function pFireChamber(st, ci) {
   const ch = st.chambers[ci];
   const fuel = pMat("Fuel"), oxy = pMat("Oxygen");
   for (let x = ch.x0; x <= ch.x1; x++) {
-    for (let y = ch.y1 - 1; y <= ch.y1; y++)
+    for (let y = ch.y1 - 3; y <= ch.y1; y++)
       if (sim.mat[sIdx(x, y)] === 0) sSet(x, y, fuel);
-    for (let y = ch.y0; y <= ch.y1 - 2; y++)
+    for (let y = ch.y0; y <= ch.y1 - 4; y++)
       if (sim.mat[sIdx(x, y)] === 0) sSet(x, y, oxy);
   }
   sIgnite(ch.cx, ch.y1 - 1);
-  for (let y = ch.cy - 1; y <= ch.cy + 1; y++)
-    for (let x = ch.cx - 1; x <= ch.cx + 1; x++)
+  for (let y = ch.cy - 2; y <= ch.cy + 2; y++)
+    for (let x = ch.cx - 2; x <= ch.cx + 2; x++)
       if (sIn(x, y)) sim.press[sIdx(x, y)] += 3;
   sim.pressActive = true;
   const ex = pMat("Exhaust");
-  pSetAir(ch.cx, ch.ventY - 3, ex);
-  pSetAir(ch.cx + 1, ch.ventY - 3, ex);
+  for (let k = 0; k < 4; k++) pSetAir(ch.cx + k, ch.ventY - 5, ex);
   st.fireLog.push({ tick: sim.tick, chamber: ci + 1 });
   if (st.fireLog.length > 40) st.fireLog.shift();
   if (st.turbine && !st.turbine.dst) st.turbine.w += 0.12; // exhaust pulse kicks the turbine (shim world only; bound rotors get real torque)
@@ -294,7 +295,7 @@ function tickI4(st) {
     st.nextFire = sim.tick + 15;
   }
   // Turbo spool: target speed follows manifold pressure at the inlet.
-  const pIn = pPressAvg(st.turbX - 10, st.mCy - 1, st.turbX - 9, st.mCy + 1);
+  const pIn = pPressAvg(st.turbX - 20, st.mCy - 2, st.turbX - 17, st.mCy + 2);
   pSpool(st.turbine, Math.min(2.5, Math.max(0, pIn) * 0.5), 0.03);
   pCouple(st.comp, st.turbine); // shaft
   // Turbine inlet pressure: the exhaust manifold pressure, imposed at
@@ -310,11 +311,11 @@ function tickI4(st) {
   // Feed the turbine only on real exhaust: the impulse drive (see
   // buildI4) is on while manifold pressure is up, off when it dies.
   if (st.turbine) st.turbine.feed = st.manifoldP > 3 ? st.feed : null;
-  for (let y = st.mCy - 1; y <= st.mCy + 1; y++)
-    for (let x = st.turbX - 12; x <= st.turbX - 9; x++)
+  for (let y = st.mCy - 2; y <= st.mCy + 2; y++)
+    for (let x = st.turbX - 24; x <= st.turbX - 17; x++)
       if (sIn(x, y)) sim.press[sIdx(x, y)] = Math.max(sim.press[sIdx(x, y)], st.manifoldP);
   const twind = pMat("Wind");
-  for (let k = -1; k <= 1; k++) pSetAir(st.turbX - 12, st.mCy + k, twind);
+  for (let k = -2; k <= 2; k++) pSetAir(st.turbX - 24, st.mCy + k, twind);
   // Compressor boost: plenum pressure follows compressor RPM.
   const boost = Math.min(10, pRPM(st.comp) / 573 * 8);
   for (let y = st.plenum.y0; y <= st.plenum.y1; y++)
@@ -322,9 +323,7 @@ function tickI4(st) {
       if (sIn(x, y)) sim.press[sIdx(x, y)] = boost;
   // Intake airflow in at the plenum mouth.
   const wind = pMat("Wind");
-  pSetAir(st.plenum.x0 + 1, st.pCy, wind);
-  pSetAir(st.plenum.x0 + 1, st.pCy - 1, wind);
-  pSetAir(st.plenum.x0 + 1, st.pCy + 1, wind);
+  for (let k = -2; k <= 2; k++) pSetAir(st.plenum.x0 + 1, st.pCy + k, wind);
 }
 
 // --- 3. Rocket -------------------------------------------------------------
@@ -346,14 +345,14 @@ function buildRocket() {
   const steel = pMat("Steel"), glass = pMat("Glass"), noz = pMat("Nozzle");
   const rp1 = MAT["RP-1"] ? MAT["RP-1"].id : MAT["Fuel"].id;
   const cx = Math.floor(SIM_W / 2);
-  const tankW = 34, tankH = 40;
+  const tankW = 102, tankH = 120;
   const tx0 = cx - Math.floor(tankW / 2), tx1 = tx0 + tankW;
   const loxTop = Math.floor(SIM_H * 0.08);
   const loxBot = loxTop + tankH;
-  const rp1Top = loxBot + 4, rp1Bot = rp1Top + tankH;
-  const chTop = rp1Bot + 6, chBot = chTop + 18;
-  const chX0 = cx - 12, chX1 = cx + 12;
-  const throatY = chBot + 6, exitY = throatY + 16;
+  const rp1Top = loxBot + 12, rp1Bot = rp1Top + tankH;
+  const chTop = rp1Bot + 18, chBot = chTop + 54;
+  const chX0 = cx - 36, chX1 = cx + 36;
+  const throatY = chBot + 18, exitY = throatY + 48;
 
   // LOX tank (top): Liquid Oxygen inside.
   pBox(tx0, loxTop, tx1, loxBot, glass);
@@ -365,22 +364,22 @@ function buildRocket() {
   pBox(tx0, rp1Top, tx1, rp1Bot, glass);
   pRect(tx0 + 1, rp1Top + 1, tx1 - 1, rp1Bot - 1, rp1);
   for (let y = rp1Bot + 1; y < chTop; y++) {
-    sSet(cx + 1, y, steel); sSet(cx + 4, y, steel); // chute walls
+    sSet(cx + 3, y, steel); sSet(cx + 12, y, steel); // chute walls
   }
-  // Combustion chamber: Nozzle-material walls, 2-cell hole in the
+  // Combustion chamber: Nozzle-material walls, 6-cell hole in the
   // floor for the exhaust.
   pBox(chX0, chTop, chX1, chBot, noz);
-  sSet(cx - 1, chBot, 0); sSet(cx, chBot, 0);     // exhaust out
-  // Bell nozzle: converging chamber (half 11) -> throat (half 1, 2
-  // cells wide) -> diverging exit (half 4, 8 cells wide).
+  for (let k = -3; k <= 2; k++) sSet(cx + k, chBot, 0); // exhaust out
+  // Bell nozzle: converging chamber (half 33) -> throat (half 3, 6
+  // cells wide) -> diverging exit (half 12, 24 cells wide).
   for (let y = chBot + 1; y <= throatY; y++) {
     const f = (y - chBot) / (throatY - chBot);
-    const half = Math.round(11 - 10 * f);
+    const half = Math.round(33 - 30 * f);
     sSet(cx - half - 1, y, noz); sSet(cx + half, y, noz);
   }
   for (let y = throatY + 1; y <= exitY; y++) {
     const f = (y - throatY) / (exitY - throatY);
-    const half = Math.round(1 + 3 * f);
+    const half = Math.round(3 + 9 * f);
     sSet(cx - half - 1, y, noz); sSet(cx + half, y, noz);
   }
   const st = {
@@ -394,7 +393,7 @@ function buildRocket() {
   };
   pAddNozzle(st, {
     cx: cx, cy: st.ch.cy, tx: cx, ty: throatY, ex: cx, ey: exitY,
-    dx: 0, dy: 1, throatW: 2, exitW: 8, name: "rocket",
+    dx: 0, dy: 1, throatW: 6, exitW: 24, name: "rocket",
   });
   return st;
 }
@@ -406,31 +405,30 @@ function tickRocket(st) {
   // fills with gas while burning, so an air-only search goes stale
   // and deliveries silently stop while the tanks still drain.
   const dropIds = [pMat("Air"), pMat("Exhaust"), pMat("Smoke")];
-  // Metered injector: one RP-1 cell per tick, drawn from the tank and
-  // placed at the first air cell in the chamber (found fresh each
+  // Metered injector: THREE RP-1 cells per tick, drawn from the tank
+  // and placed at the first air cell in the chamber (found fresh each
   // tick — the roof row fills with oxygen gas, so a fixed drop point
   // goes stale and deliveries silently fail), only while the chamber
-  // holds fewer than 4 RP-1 cells. Capping the pool caps the burn
-  // rate — an open gravity feed flash-burns the whole pool at
-  // ~3 cells/tick. Light it at once: a lone fuel cell would otherwise
-  // be pressure-pushed out the exhaust hole before the next scheduled
-  // ignition, and the burn would stall with a full tank.
-  if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, rp1) < 4) {
+  // holds fewer than 12 RP-1 cells. Capping the pool caps the burn
+  // rate — an open gravity feed flash-burns the whole pool. Light it
+  // at once: a lone fuel cell would otherwise be pressure-pushed out
+  // the exhaust hole before the next scheduled ignition, and the burn
+  // would stall with a full tank.
+  for (let k = 0; k < 3; k++) {
+    if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, rp1) >= 12) break;
     const spot = pFindCell(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, dropIds);
     const c = spot && pFindCell(st.rp1.x0, st.rp1.y0, st.rp1.x1, st.rp1.y1, [rp1]);
-    if (spot && c) {
-      sSet(c[0], c[1], 0);
-      sSet(spot[0], spot[1], rp1);
-      sIgnite(spot[0], spot[1]);
-    }
+    if (!spot || !c) break;
+    sSet(c[0], c[1], 0);
+    sSet(spot[0], spot[1], rp1);
+    sIgnite(spot[0], spot[1]);
   }
-  // LOX feed: draw TWO units of oxygen out of the tank into the chamber
-  // every tick. Measured: one per tick starves the burn (oxyIn stuck
-  // at 1 while 24 fire cells want oxygen) and chamber pressure sags
-  // from ~25 to ~11, flipping thrust negative at the over-expansion
-  // cliff. Top-up is 1 per tick, so the tank still drains (draw 1200
-  // vs top-up 600 over 600 ticks) without running dry.
-  for (let k = 0; k < 2; k++) {
+  // LOX feed: draw SIX units of oxygen out of the tank into the chamber
+  // every tick (3x the original rate for the 3x chamber — the bigger
+  // burn wants proportionally more oxygen). Top-up is 1 per tick, so
+  // the tank still drains (draw 3600 vs top-up 600 over 600 ticks)
+  // without running dry.
+  for (let k = 0; k < 6; k++) {
     const spot = pFindCell(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, dropIds);
     const c = spot && pFindCell(st.lox.x0, st.lox.y0, st.lox.x1, st.lox.y1, [lox, oxy]);
     if (spot && c) {
@@ -439,9 +437,9 @@ function tickRocket(st) {
     }
   }
   // Test-stand supply: top up both tanks, slower than the burn drains
-  // them. RP-1: 1 cell per 2 ticks in vs ~1 per tick drawn by the
-  // injector; LOX: 1 per 3 ticks in vs 1 per tick drawn.
-  if (sim.tick % 2 === 0) pTopUp(st.rp1, [rp1], rp1, st.rp1.cap);
+  // them. RP-1: 1 cell per 4 ticks in vs ~3 per tick drawn by the
+  // injector; LOX: 1 per tick in vs 6 per tick drawn.
+  if (sim.tick % 4 === 0) pTopUp(st.rp1, [rp1], rp1, st.rp1.cap);
   pTopUp(st.lox, [lox, oxy], lox, st.lox.cap);
   // Continuous burn while propellant is present in the chamber.
   // Fire counts as burning: each injected cell is lit at once and
@@ -473,9 +471,8 @@ function tickRocket(st) {
   sim.pressActive = true;
   // Exhaust plume out the throat and the bell exit.
   const ex = pMat("Exhaust");
-  pSetAir(st.ch.cx - 1, st.throatY + 1, ex);
-  pSetAir(st.ch.cx, st.throatY + 1, ex);
-  pSetAir(st.ch.cx, st.exitY + 1, ex);
+  for (let k = -3; k <= 2; k++) pSetAir(st.ch.cx + k, st.throatY + 1, ex);
+  for (let k = -1; k <= 1; k++) pSetAir(st.ch.cx + k, st.exitY + 1, ex);
 }
 
 // --- 4. Turbofan -----------------------------------------------------------
@@ -488,58 +485,59 @@ function tickRocket(st) {
 function buildTurbofan() {
   const steel = pMat("Steel"), noz = pMat("Nozzle");
   const cy = Math.floor(SIM_H * 0.45);
-  const x0 = Math.floor(SIM_W * 0.30), L = 150, x1 = x0 + L;
+  const L = 300;
+  const x0 = Math.floor((SIM_W - L) / 2), x1 = x0 + L;
   // Nacelle walls (open at both ends: intake left, exhaust right).
-  for (let x = x0; x <= x1; x++) { sSet(x, cy - 26, steel); sSet(x, cy + 26, steel); }
+  for (let x = x0; x <= x1; x++) { sSet(x, cy - 52, steel); sSet(x, cy + 52, steel); }
   // Core duct walls (half-height 9), x0+40 .. x0+118.
-  const coreX0 = x0 + 40, coreX1 = x0 + 118;
-  for (let x = coreX0; x <= coreX1; x++) { sSet(x, cy - 9, steel); sSet(x, cy + 9, steel); }
+  const coreX0 = x0 + 80, coreX1 = x0 + 236;
+  for (let x = coreX0; x <= coreX1; x++) { sSet(x, cy - 18, steel); sSet(x, cy + 18, steel); }
   // Combustion chamber x0+64..x0+88: end walls with a 4-cell airflow
   // opening in the middle, so core air flows through the burner.
-  for (let y = cy - 9; y <= cy + 9; y++) {
-    if (y < cy - 2 || y > cy + 1) {
-      sSet(x0 + 64, y, noz); sSet(x0 + 88, y, noz);
+  for (let y = cy - 18; y <= cy + 18; y++) {
+    if (y < cy - 4 || y > cy + 3) {
+      sSet(x0 + 128, y, noz); sSet(x0 + 176, y, noz);
     }
   }
-  const fan = pMakeRotor(x0 + 16, cy, 9);
-  const comp = pMakeRotor(x0 + 50, cy, 4);
-  const turb = pMakeRotor(x0 + 102, cy, 4);
+  const fan = pMakeRotor(x0 + 32, cy, 18);
+  const comp = pMakeRotor(x0 + 100, cy, 8);
+  const turb = pMakeRotor(x0 + 204, cy, 8);
   // Impulse drive for the turbine (same as the I4): the exhaust jet
   // hits the upper blades only, gated on combustor pressure in
   // tickTurbofan so the wheel only spins on real exhaust.
   // Seed the burner with fuel + air.
   const fuel = pMat("Fuel"), oxy = pMat("Oxygen");
-  for (let x = x0 + 66; x <= x0 + 70; x++) sSet(x, cy + 7, fuel);
-  for (let x = x0 + 72; x <= x0 + 86; x++)
-    for (let y = cy - 7; y <= cy + 6; y++) pSetAir(x, y, oxy);
-  // Core bell nozzle, horizontal: core end (half 8) -> throat
-  // (x0+121, half 1, 2 cells) -> exit (x0+128, half 3, 6 cells).
-  const throatX = x0 + 121, exitX = x0 + 128;
+  for (let x = x0 + 132; x <= x0 + 140; x++) sSet(x, cy + 14, fuel);
+  for (let x = x0 + 144; x <= x0 + 172; x++)
+    for (let y = cy - 14; y <= cy + 12; y++) pSetAir(x, y, oxy);
+  // Core bell nozzle, horizontal: core end (half 16) -> throat
+  // (x0+242, half 2, 4 cells) -> exit (x0+256, half 6, 12 cells).
+  const throatX = x0 + 242, exitX = x0 + 256;
   for (let x = coreX1 + 1; x <= throatX; x++) {
     const f = (x - coreX1) / (throatX - coreX1);
-    const half = Math.round(8 - 7 * f);
+    const half = Math.round(16 - 14 * f);
     sSet(x, cy - half - 1, noz); sSet(x, cy + half, noz);
   }
   for (let x = throatX + 1; x <= exitX; x++) {
     const f = (x - throatX) / (exitX - throatX);
-    const half = Math.round(1 + 2 * f);
+    const half = Math.round(2 + 4 * f);
     sSet(x, cy - half - 1, noz); sSet(x, cy + half, noz);
   }
   const st = {
     x0: x0, x1: x1, cy: cy, fan: fan, comp: comp, turbine: turb,
-    ch: { x0: x0 + 65, y0: cy - 8, x1: x0 + 87, y1: cy + 8,
-          cx: x0 + 76, cy: cy },
-    turbX: x0 + 102, throatX: throatX, turbInP: 0, // turbine inlet pressure
+    ch: { x0: x0 + 130, y0: cy - 16, x1: x0 + 174, y1: cy + 16,
+          cx: x0 + 152, cy: cy },
+    turbX: x0 + 204, throatX: throatX, turbInP: 0, // turbine inlet pressure
     // Impulse drive (same as the I4): a narrow strip just left of the
     // upper arm — a quadrant feed cancels exactly (measured w = 0.000).
-    feed: { x0: x0 + 100, y0: cy - 6, x1: x0 + 101, y1: cy - 2 },
-    intake: { x0: x0 + 1, y0: cy - 20, x1: x0 + 12, y1: cy + 20 },
-    bypass: { x0: x0 + 120, y0: cy - 24, x1: x0 + 145, y1: cy - 11 },
-    bypassLo: { x0: x0 + 120, y0: cy + 11, x1: x0 + 145, y1: cy + 24 },
+    feed: { x0: x0 + 200, y0: cy - 12, x1: x0 + 203, y1: cy - 4 },
+    intake: { x0: x0 + 2, y0: cy - 40, x1: x0 + 24, y1: cy + 40 },
+    bypass: { x0: x0 + 240, y0: cy - 48, x1: x0 + 290, y1: cy - 22 },
+    bypassLo: { x0: x0 + 240, y0: cy + 22, x1: x0 + 290, y1: cy + 48 },
   };
   pAddNozzle(st, {
     cx: st.ch.cx, cy: cy, tx: throatX, ty: cy, ex: exitX, ey: cy,
-    dx: 1, dy: 0, throatW: 2, exitW: 6, name: "core",
+    dx: 1, dy: 0, throatW: 4, exitW: 12, name: "core",
   });
   // Bypass "nozzle" is the nacelle exit plane: the sample point sits
   // in the bypass duct, so fan-pressurised bypass air is what it reads.
@@ -549,8 +547,8 @@ function buildTurbofan() {
   // the core nozzle carries the Newton readout. That is the model
   // working as designed, not a preset bug.
   pAddNozzle(st, {
-    cx: x0 + 130, cy: cy - 17, tx: x1 - 4, ty: cy - 17, ex: x1, ey: cy - 17,
-    dx: 1, dy: 0, throatW: 2, exitW: 8, name: "bypass",
+    cx: x0 + 260, cy: cy - 34, tx: x1 - 8, ty: cy - 34, ex: x1, ey: cy - 34,
+    dx: 1, dy: 0, throatW: 4, exitW: 16, name: "bypass",
   });
   return st;
 }
@@ -558,18 +556,18 @@ function buildTurbofan() {
 function tickTurbofan(st) {
   const wind = pMat("Wind"), fuel = pMat("Fuel"), oxy = pMat("Oxygen");
   // Air in at the intake and along the bypass.
-  for (let k = -2; k <= 2; k++) pSetAir(st.x0 + 2, st.cy + k * 4, wind);
-  pSetAir(st.x0 + 30, st.cy - 17, wind);
-  pSetAir(st.x0 + 30, st.cy + 17, wind);
+  for (let k = -2; k <= 2; k++) pSetAir(st.x0 + 4, st.cy + k * 8, wind);
+  pSetAir(st.x0 + 60, st.cy - 34, wind);
+  pSetAir(st.x0 + 60, st.cy + 34, wind);
   // Keep the burner charged: a few fuel cells + oxygen, refilled as
   // it burns (test-stand fuel supply).
-  if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, fuel) < 3) {
-    for (let k = 0; k < 2; k++)
-      pSetAir(st.ch.cx - 4 + k, st.ch.y1, fuel);
+  if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, fuel) < 6) {
+    for (let k = 0; k < 4; k++)
+      pSetAir(st.ch.cx - 8 + k * 2, st.ch.y1, fuel);
   }
-  if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, oxy) < 10) {
-    for (let k = 0; k < 3; k++)
-      pSetAir(st.ch.cx + k * 3, st.ch.y0 + 1, oxy);
+  if (pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, oxy) < 20) {
+    for (let k = 0; k < 6; k++)
+      pSetAir(st.ch.cx + k * 6, st.ch.y0 + 2, oxy);
   }
   const fuelIn = pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, fuel);
   const oxyIn = pCount(st.ch.x0, st.ch.y0, st.ch.x1, st.ch.y1, oxy);
@@ -591,13 +589,13 @@ function tickTurbofan(st) {
     }
     sim.pressActive = true;
     const ex = pMat("Exhaust");
-    pSetAir(st.ch.x1 + 2, st.ch.cy, ex);
-    pSetAir(st.ch.x1 + 3, st.ch.cy + 1, ex);
+    pSetAir(st.ch.x1 + 4, st.ch.cy, ex);
+    pSetAir(st.ch.x1 + 6, st.ch.cy + 2, ex);
     // Throat gas: the real nozzle needs gas in the throat
     // cross-section to flow — seed it while burning (chamber exhaust
     // takes ~30 ticks to drift there on its own).
     pSetAir(st.throatX, st.ch.cy, ex);
-    pSetAir(st.throatX, st.ch.cy + 1, ex);
+    pSetAir(st.throatX, st.ch.cy + 2, ex);
   }
   // Turbine inlet pressure: the combustor pressure imposed at the
   // turbine inlet as a boundary condition (same reasoning as the I4:
@@ -615,16 +613,16 @@ function tickTurbofan(st) {
   else st.turbInP *= 0.95;
   // Feed the turbine only on real exhaust (impulse drive, see build).
   if (st.turbine) st.turbine.feed = st.turbInP > 3 ? st.feed : null;
-  for (let y = st.cy - 2; y <= st.cy + 2; y++)
-    for (let x = st.turbX - 9; x <= st.turbX - 6; x++)
+  for (let y = st.cy - 4; y <= st.cy + 4; y++)
+    for (let x = st.turbX - 18; x <= st.turbX - 12; x++)
       if (sIn(x, y)) sim.press[sIdx(x, y)] = Math.max(sim.press[sIdx(x, y)], st.turbInP);
-  for (let y = st.cy - 3; y <= st.cy + 3; y++)
-    for (let x = st.turbX + 6; x <= st.turbX + 9; x++)
+  for (let y = st.cy - 6; y <= st.cy + 6; y++)
+    for (let x = st.turbX + 12; x <= st.turbX + 18; x++)
       if (sIn(x, y)) sim.press[sIdx(x, y)] = 0;
-  for (let k = -2; k <= 2; k++) pSetAir(st.turbX - 9, st.cy + k, wind);
+  for (let k = -4; k <= 4; k++) pSetAir(st.turbX - 18, st.cy + k, wind);
   // Turbine spool from pressure at the turbine inlet, then shaft
   // coupling: compressor and fan turn with the turbine.
-  const pIn = pPressAvg(st.turbX - 6, st.cy - 3, st.turbX - 3, st.cy + 3);
+  const pIn = pPressAvg(st.turbX - 12, st.cy - 6, st.turbX - 6, st.cy + 6);
   pSpool(st.turbine, Math.min(2.5, Math.max(0, pIn) * 0.5), 0.03);
   pCouple(st.comp, st.turbine);
   pCouple(st.fan, st.turbine);

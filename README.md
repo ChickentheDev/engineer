@@ -115,11 +115,12 @@ No build step, no dependencies — plain canvas + JavaScript.
   burns breaks its rotor the same way.
 - **Presets library (top-bar Library button):** five ready-made sims
   that actually run — **Furnace Test** (sealed chamber, light it and
-  watch pressure climb), **I4 Engine + Turbo** (four chambers fire
-  1-3-4-2, exhaust spools a turbo that pressurises the intake),
-  **Rocket** (RP-1 + LOX tanks drain as it burns, ~7.8 kN peak thrust),
-  **Turbofan** (fan + bypass duct around a compressor-burner-turbine
-  core, twin nozzles), **Turbine Demo**. Honest limit: no
+  watch pressure climb), **I4 Engine + Turbo** (four 40×44 chambers
+  fire 1-3-4-2, exhaust spools a turbo that pressurises the intake),
+  **Rocket** (102×120 RP-1 + LOX tanks drain as it burns, ~24 kN peak
+  thrust through a 6/24 bell nozzle), **Turbofan** (300-cell nacelle,
+  18-blade fan + bypass duct around a compressor-burner-turbine core,
+  twin nozzles, ~10 kN peak), **Turbine Demo**. Honest limit: no
   pistons/crankshaft — the sim has no linear moving parts, so the I4's
   chambers ARE the cylinders and the firing order + turbo spool are
   real while the crank motion is not modelled. Clear stops the active

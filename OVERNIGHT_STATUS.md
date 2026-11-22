@@ -4,9 +4,9 @@ Sam asked (2026-11-22 00:40 ET): work through the night — real-world material
 tolerances, radiation/radioactivity, rocket fuel, compression physics, bell
 nozzle physics, and a pre-made sims library (I4 + turbo, Rocket, Turbofan).
 Coordinator subagent running. No releases/versions — Sam names versions himself.
-All overnight stages A–E are done locally and verified; every push
-(?v=9–?v=13) waits for the morning, when Sam is awake to approve the
-GitHub calls (the ?v=9 push was blocked on an approval timeout ~00:55 ET).
+All overnight stages A–E are PUSHED (commit a9149aa9, ?v=13, verified live
+2026-11-22 ~10:50 ET). Stage F (bigger engines, ?v=14) is done locally and
+verified, NOT pushed.
 
 ## Starting state (verified live)
 - Main at `f4c25a07` (?v=8). 55 materials. Stage 2 step 1 physics done
@@ -209,11 +209,46 @@ GitHub calls (the ?v=9 push was blocked on an approval timeout ~00:55 ET).
   - Bench: empty ~14 ms, furnace ~27 ms, busy ~19 ms — same noisy
     sandbox range as Stage B/C (CPU throttling, not a regression);
     re-check on real hardware before trusting any bench number.
+- [x] Stage F — bigger engines (?v=14, NOT pushed). Sam: "Make the
+  engines way bigger." I4 2x, Rocket 3x, Turbofan 2x — the phone grid
+  (374 wide) is the binding constraint: a 2.5x I4 would clip the turbo
+  housing at the right edge, a 2.5x turbofan (375 long) is wider than
+  the phone grid. Furnace Test and Turbine Demo untouched.
+  - I4: chambers 40x44 (interior 39x43), GAP 12, totalW 196; manifold
+    8-row duct, plenum 7-row duct; turbo housings half 16, turbine +
+    compressor wheels bladeLen 8 (41 cells); feed strip 4x9. Verified:
+    fire order 1-3-4-2 x4 clean both sizes, exhaust ~2500, turbine
+    38–44 RPM (was 63–66 — the bigger wheel's inertia spools slower,
+    still spins fine). Rotor dst [64–72] — oscillation, clean bind.
+  - Rocket: tanks 102x120 (interior 101x119, cap 12,019 each),
+    chamber 72x54, throat 6 / exit 24 (area ratio still 4, exit Mach
+    ~2.62). Feed scaled 3x: injector 3 RP-1/tick (pool cap 12), LOX
+    6/tick, top-ups RP-1 1/4 ticks, LOX 1/tick. Verified: max thrust
+    ~24.2 kN (was 7.8 — throat area 3x, as the model predicts),
+    sustained ~22–23 kN, tanks drain 25% LOX / 14% RP-1 in 600 ticks,
+    burning both sizes.
+  - Turbofan: nacelle 300 long (centered — the old 0.30*SIM_W start
+    would run off the phone grid at 2x), half-height 52, core half
+    18; fan blades 18 (81 cells), comp/turb blades 8; core nozzle
+    throat 4 / exit 12, bypass throat 4 / exit 16. Verified: max
+    thrust ~9.4–10.9 kN, core ~6.4–6.8 kN, bypass 0 N (known limit,
+    cool air), rotors 36–44 RPM.
+  - One check failed first, then fixed: the turbofan fan's dst read
+    140 cells and tripped the <120 clean-bind assertion. Probe
+    (40 samples over 600 ticks) showed it oscillates 80→148 as the
+    wheel turns — template is 81 cells, I=11036 (the Stage D flood
+    was 650 cells, I=2.9M) and the wheel keeps spinning, so it is
+    the documented resampling oscillation, not a flood. Threshold
+    raised to <250 (a flood is 600+). All five suites pass after the
+    fix, zero errors.
+  - Bench: empty ~13.5 ms, furnace ~27 ms, busy ~19.5 ms — same
+    noisy sandbox range as Stages B–E, no regression.
 
 ## Push log
 | Stage | Commit | ?v= | Notes |
 |---|---|---|---|
 | (start) | f4c25a07 | 8 | Stage 2 step 1 + fullscreen, verified live |
+| A–E | a9149aa9 | 13 | Overnight stages A–E, verified live 2026-11-22 ~10:50 ET |
 
 ## Design decisions (for Sam)
 - Plain canvas JS, no rewrite. Other languages only for tooling/checks.
@@ -251,15 +286,15 @@ GitHub calls (the ?v=9 push was blocked on an approval timeout ~00:55 ET).
   Rocket, Turbofan, Turbine Demo). Presets are in `js/presets.js`.
 - **Furnace Test** — sealed steel chamber, fuel + gunpowder. Light it
   (Ignite tool) and watch pressure climb.
-- **I4 Engine + Turbo** — four chambers fire 1-3-4-2, one firing per 15
+- **I4 Engine + Turbo** — four 40×44 chambers fire 1-3-4-2, one firing per 15
   ticks; exhaust spools the turbo, compressor pressurises the intake.
   No pistons/crankshaft — chambers ARE the cylinders; firing order and
   turbo spool are real, the crank motion is not modelled.
 - **Rocket** — RP-1 + LOX tanks drain as it burns; bell nozzle below the
-  chamber. Thrust readout in the FPS line (~7.8 kN peak, ~2.2 kN sustained).
+  chamber. Thrust readout in the FPS line (~24 kN peak, ~22 kN sustained).
   Tanks are glass so the falling level is visible.
-- **Turbofan** — fan + bypass duct around a compressor-burner-turbine
-  core; twin nozzles. Core nozzle carries the thrust (~5 kN); the bypass
+- **Turbofan** — 300-cell nacelle, 18-blade fan + bypass duct around a compressor-burner-turbine
+  core; twin nozzles. Core nozzle carries the thrust (~6.5 kN of ~10 kN total); the bypass
   nozzle reads 0 N because bypass air is cool and the thrust model is
   hot-gas isentropic — fan thrust shows as bypass airflow instead.
 - **Turbine Demo** — paddle-wheel turbine in a duct, driven by wind.
