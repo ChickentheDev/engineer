@@ -1,14 +1,24 @@
-// Engineer — Stage 1 UI: left menu with material categories (desktop),
-// bottom bar with category buttons (phones), fullscreen sandbox,
-// rendering, input. Bare globals, classic script. Canvas is
-// SIM_W x SIM_H cells, drawn through an ImageData buffer so a full frame
-// is one putImageData call.
+// Engineer — Stage 1 UI, powder-ui transplant (Sam's redesign).
+// Right icon sidebar, bottom material strip with left/right select,
+// bottom icon bar (clear, furnace, brush, rect, line, pause),
+// top bar (view, ambient heat, grid), FPS + cursor readout.
+// The sim itself is untouched (js/sim.js, js/materials.js) —
+// same 800x450 grid, same 19 materials, same phase changes.
+// Bare globals, classic script.
 
 const CELL = 2; // px per cell in the backing store (800x450 -> 1600x900)
-const canvas = document.getElementById("sim");
+const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 canvas.width = SIM_W * CELL;
 canvas.height = SIM_H * CELL;
+const ov = document.getElementById("ov");
+const octx = ov.getContext("2d");
+ov.width = SIM_W; ov.height = SIM_H;
+const stage = document.getElementById("stage");
+const box = document.getElementById("canvasBox");
+const gridEl = document.getElementById("grid");
+const fpsEl = document.getElementById("fps");
+const infoEl = document.getElementById("info");
 
 const img = ctx.createImageData(SIM_W, SIM_H);
 const viewCanvas = document.createElement("canvas");
@@ -16,27 +26,29 @@ viewCanvas.width = SIM_W;
 viewCanvas.height = SIM_H;
 const viewCtx = viewCanvas.getContext("2d");
 
-const canvasWrap = document.getElementById("canvasWrap");
+const S = (p) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
-let selectedMat = 2;      // Steel
-let tool = "paint";       // paint | heat | cool | ignite | erase
-let brushSize = 12;
-let viewMode = "normal";  // normal | heat | pressure
-let zoomed = false;
-let mouseDown = false;
-let mouseX = 0, mouseY = 0;
+let leftMat = 2, rightMat = 10;   // Steel, Water
+let tool = "paint";               // paint | heat | cool | ignite | erase
+let shape = "brush";              // brush | rect | line
+const BR = [1, 2, 3, 5, 8, 12, 16, 24]; // brush radii; button shows diameter
+let bi = 5;                       // radius 12 (diameter 25, the old default)
+let viewMode = "normal";          // normal | heat | pressure
+let ambient = true;               // heat drifts back to ambient
+let gridOn = false;
+let down = false, btn = 0, mx = -1, my = -1, ax = 0, ay = 0, lx = 0, ly = 0;
+let parts = 0;
 
-// --- Fit the sandbox to the whole screen -----------------------------------
-// Largest box that fits the canvas area, keeping the grid's aspect;
-// zoom doubles it (the area scrolls).
+// --- Fit the sandbox to the stage, keeping the grid's aspect -------------
 function fitCanvas() {
-  const r = canvasWrap.getBoundingClientRect();
-  const pad = 8;
-  const w = Math.max(50, r.width - pad * 2);
-  const h = Math.max(50, r.height - pad * 2);
-  const scale = Math.min(w / SIM_W, h / SIM_H) * (zoomed ? 2 : 1);
-  canvas.style.width = Math.floor(SIM_W * scale) + "px";
-  canvas.style.height = Math.floor(SIM_H * scale) + "px";
+  const r = stage.getBoundingClientRect();
+  const scale = Math.min(r.width / SIM_W, r.height / SIM_H);
+  const w = Math.max(50, Math.floor(SIM_W * scale));
+  const h = Math.max(50, Math.floor(SIM_H * scale));
+  box.style.width = w + "px"; box.style.height = h + "px";
+  canvas.style.width = w + "px"; canvas.style.height = h + "px";
+  ov.style.width = w + "px"; ov.style.height = h + "px";
+  gridEl.style.backgroundSize = (w / SIM_W) + "px " + (h / SIM_H) + "px";
 }
 window.addEventListener("resize", fitCanvas);
 
@@ -67,8 +79,11 @@ function pressureColor(p) {
 
 function render() {
   const d = img.data;
+  parts = 0;
   for (let i = 0; i < SIM_W * SIM_H; i++) {
-    const m = MATERIALS[sim.mat[i]];
+    const mid = sim.mat[i];
+    if (mid !== 0) parts++;
+    const m = MATERIALS[mid];
     let r, g, b;
     if (viewMode === "heat") {
       [r, g, b] = tempColor(sim.temp[i]);
@@ -83,7 +98,7 @@ function render() {
         g = Math.round(g + (120 - g) * glow * 0.5);
       }
       // Fire flickers.
-      if (sim.mat[i] === 16) {
+      if (mid === 16) {
         const f = 0.75 + Math.random() * 0.5;
         r = Math.min(255, Math.round(r * f));
         g = Math.min(255, Math.round(g * f));
@@ -97,7 +112,67 @@ function render() {
   ctx.drawImage(viewCanvas, 0, 0, canvas.width, canvas.height);
 }
 
-// --- Input -----------------------------------------------------------------
+// --- Painting --------------------------------------------------------------
+// One cell's worth of the current tool. Paint only fills empty space
+// (air) or transient gas (fire, smoke, steam) — it never eats something
+// you already built; use Erase to clear a material first.
+function applyCell(x, y, matId) {
+  if (!sIn(x, y)) return;
+  const i = sIdx(x, y);
+  if (tool === "paint") {
+    const cur = sim.mat[i];
+    if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17) return;
+    sSet(x, y, matId);
+  } else if (tool === "erase") {
+    if (sim.mat[i] !== 1) sSet(x, y, 0);
+  } else if (tool === "heat") {
+    sim.temp[i] += 60;
+  } else if (tool === "cool") {
+    sim.temp[i] = Math.max(-50, sim.temp[i] - 60);
+  } else if (tool === "ignite") {
+    sIgnite(x, y);
+  }
+}
+
+function applyBrush(cx, cy, matId) {
+  const r = BR[bi];
+  for (let y = cy - r; y <= cy + r; y++) {
+    for (let x = cx - r; x <= cx + r; x++) {
+      if (Math.hypot(x - cx, y - cy) > r + 0.5) continue;
+      applyCell(x, y, matId);
+    }
+  }
+}
+
+function strokeBrush(x0, y0, x1, y1, matId) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+  for (let k = 0; k <= n; k++) {
+    applyBrush(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), matId);
+  }
+}
+
+// Rect / line tools: preview on the overlay canvas while dragging,
+// commit on release.
+function preview() {
+  octx.clearRect(0, 0, SIM_W, SIM_H);
+  octx.strokeStyle = "#fff"; octx.lineWidth = 1; octx.beginPath();
+  if (shape === "rect") {
+    octx.rect(Math.min(ax, mx) + .5, Math.min(ay, my) + .5, Math.abs(mx - ax), Math.abs(my - ay));
+  } else {
+    octx.moveTo(ax + .5, ay + .5); octx.lineTo(mx + .5, my + .5);
+  }
+  octx.stroke();
+}
+
+function commitShape(matId) {
+  if (shape === "line") { strokeBrush(ax, ay, mx, my, matId); return; }
+  const x0 = Math.max(0, Math.min(ax, mx)), x1 = Math.min(SIM_W - 1, Math.max(ax, mx));
+  const y0 = Math.max(0, Math.min(ay, my)), y1 = Math.min(SIM_H - 1, Math.max(ay, my));
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) applyCell(x, y, matId);
+  }
+}
+
 function canvasCell(e) {
   const r = canvas.getBoundingClientRect();
   const x = Math.floor((e.clientX - r.left) / r.width * SIM_W);
@@ -105,220 +180,175 @@ function canvasCell(e) {
   return [x, y];
 }
 
-function applyTool(cx, cy) {
-  const r = brushSize;
-  for (let y = cy - r; y <= cy + r; y++) {
-    for (let x = cx - r; x <= cx + r; x++) {
-      if (!sIn(x, y)) continue;
-      if (Math.hypot(x - cx, y - cy) > r + 0.5) continue;
-      const i = sIdx(x, y);
-      if (tool === "paint") {
-        // Paint only fills empty space (air) or transient gas (fire, smoke,
-        // steam). It never eats something you already built — use Erase to
-        // clear a material first.
-        const cur = sim.mat[i];
-        if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17) continue;
-        sSet(x, y, selectedMat);
-      } else if (tool === "erase") {
-        if (sim.mat[i] !== 1) sSet(x, y, 0);
-      } else if (tool === "heat") {
-        sim.temp[i] += 60;
-      } else if (tool === "cool") {
-        sim.temp[i] = Math.max(-50, sim.temp[i] - 60);
-      } else if (tool === "ignite") {
-        sIgnite(x, y);
-      }
-    }
-  }
+function updateInfo() {
+  if (!sIn(mx, my)) { infoEl.innerHTML = "&nbsp;"; return; }
+  const i = sIdx(mx, my);
+  const m = MATERIALS[sim.mat[i]];
+  infoEl.innerHTML = `${m.name}, Temp: ${sim.temp[i].toFixed(0)}°C, Pressure: ${sim.press[i].toFixed(1)}<br>#${i}, X:${mx} Y:${my}`;
 }
 
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("pointerdown", (e) => {
-  mouseDown = true;
+  down = true;
+  btn = e.button === 2 ? rightMat : leftMat;
   canvas.setPointerCapture(e.pointerId);
-  const [x, y] = canvasCell(e);
-  mouseX = x; mouseY = y;
-  applyTool(x, y);
+  [mx, my] = canvasCell(e);
+  ax = lx = mx; ay = ly = my;
+  if (shape === "brush") applyBrush(mx, my, btn);
+  updateInfo();
 });
 canvas.addEventListener("pointermove", (e) => {
   const [x, y] = canvasCell(e);
-  mouseX = x; mouseY = y;
-  if (mouseDown) applyTool(x, y);
-  updateReadout();
+  mx = x; my = y;
+  if (!down) { updateInfo(); return; }
+  if (shape === "brush") { strokeBrush(lx, ly, x, y, btn); lx = x; ly = y; }
+  else preview();
+  updateInfo();
 });
-canvas.addEventListener("pointerup", () => { mouseDown = false; });
-canvas.addEventListener("pointerleave", () => { mouseDown = false; });
-
-// --- Shared selection --------------------------------------------------------
-function selectMaterial(m) {
-  selectedMat = m.id;
-  tool = "paint";
-  document.querySelectorAll(".swatch").forEach((el) =>
-    el.classList.toggle("selected", el.dataset.mat === String(m.id)));
-  setToolButton();
-  markSelectedCategory();
-}
-
-function makeSwatch(name) {
-  const m = MAT[name];
-  const b = document.createElement("button");
-  b.className = "swatch" + (m.id === selectedMat ? " selected" : "");
-  b.dataset.mat = m.id;
-  b.style.setProperty("--c", `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`);
-  b.textContent = name;
-  b.title = `${name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
-  b.onclick = () => { selectMaterial(m); hideMobileMats(); };
-  return b;
-}
-
-// --- Left menu: material categories (desktop) --------------------------------
-// One category open at a time. Click toggles; on desktop, hovering a
-// category with a real mouse opens it too.
-const catsEl = document.getElementById("categories");
-let openCat = null;
-
-function openCategory(catEl) {
-  document.querySelectorAll("#categories .cat.open").forEach((el) => {
-    if (el !== catEl) el.classList.remove("open");
-  });
-  catEl.classList.add("open");
-  openCat = catEl;
-}
-
-CATEGORIES.forEach((cat, ci) => {
-  const wrap = document.createElement("div");
-  wrap.className = "cat";
-  const btn = document.createElement("button");
-  btn.className = "cat-btn";
-  btn.textContent = cat.name;
-  btn.onclick = () => {
-    if (wrap.classList.contains("open")) wrap.classList.remove("open");
-    else openCategory(wrap);
-  };
-  // Hovering with a real mouse opens the category; touch taps are left
-  // to the click toggle (a tap fires pointerenter with type "touch",
-  // and opening there would fight the toggle).
-  btn.addEventListener("pointerenter", (e) => {
-    if (e.pointerType === "mouse") openCategory(wrap);
-  });
-  const items = document.createElement("div");
-  items.className = "cat-items";
-  cat.items.forEach((name) => items.appendChild(makeSwatch(name)));
-  wrap.appendChild(btn);
-  wrap.appendChild(items);
-  catsEl.appendChild(wrap);
-  if (ci === 0) openCategory(wrap); // Solids open by default
+addEventListener("pointerup", () => {
+  if (!down) return;
+  down = false;
+  if (shape !== "brush") { commitShape(btn); octx.clearRect(0, 0, SIM_W, SIM_H); }
 });
+canvas.addEventListener("pointerleave", () => { if (!down) { mx = -1; my = -1; } });
 
-// --- Bottom bar: category buttons (phones) -----------------------------------
-// No menu button, no drawer: the four categories are buttons, bottom
-// left. Tapping one pops its materials up in a strip above; tapping a
-// material picks it and the strip closes.
-const mobileMats = document.getElementById("mobileMats");
-const mobileCatsRow = document.getElementById("mobileCatsRow");
-let openMobileCat = null;
-
-function hideMobileMats() {
-  mobileMats.classList.remove("show");
-  document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) => b.classList.remove("open"));
-  openMobileCat = null;
-  fitCanvas();
-}
-
-function markSelectedCategory() {
-  const cat = CATEGORIES.find((c) => c.items.some((n) => MAT[n].id === selectedMat));
-  document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) => {
-    b.classList.toggle("selected", cat && b.textContent === cat.name);
-  });
-}
-
-CATEGORIES.forEach((cat) => {
-  const btn = document.createElement("button");
-  btn.className = "cat-btn";
-  btn.textContent = cat.name;
-  btn.onclick = () => {
-    if (openMobileCat === cat.name) { hideMobileMats(); return; }
-    mobileMats.innerHTML = "";
-    cat.items.forEach((name) => mobileMats.appendChild(makeSwatch(name)));
-    mobileMats.classList.add("show");
-    document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) =>
-      b.classList.toggle("open", b === btn));
-    openMobileCat = cat.name;
-    fitCanvas();
-  };
-  mobileCatsRow.appendChild(btn);
-});
-
-// Brush stepper: − / + buttons right next to the categories, thumb-sized.
-const minusBtn = document.createElement("button");
-minusBtn.className = "brush-step";
-minusBtn.textContent = "−";
-const brushValMobile = document.createElement("span");
-brushValMobile.id = "mobileBrushVal";
-brushValMobile.textContent = brushSize;
-const plusBtn = document.createElement("button");
-plusBtn.className = "brush-step";
-plusBtn.textContent = "+";
-function setBrush(v) {
-  brushSize = Math.max(1, Math.min(32, v));
-  document.getElementById("brushVal").textContent = brushSize;
-  brushValMobile.textContent = brushSize;
-  const slider = document.getElementById("brush");
-  if (slider) slider.value = brushSize;
-}
-minusBtn.onclick = () => setBrush(brushSize - 2);
-plusBtn.onclick = () => setBrush(brushSize + 2);
-mobileCatsRow.appendChild(minusBtn);
-mobileCatsRow.appendChild(brushValMobile);
-mobileCatsRow.appendChild(plusBtn);
-
-// --- Tools, views, actions (both layouts share data attributes) --------------
-function setToolButton() {
-  document.querySelectorAll("[data-tool]").forEach((el) => {
-    el.classList.toggle("selected", el.dataset.tool === tool);
-  });
-}
-document.querySelectorAll("[data-tool]").forEach((el) => {
-  el.onclick = () => { tool = el.dataset.tool; setToolButton(); };
-});
-document.querySelectorAll("[data-view]").forEach((el) => {
-  el.onclick = () => {
-    viewMode = el.dataset.view;
-    document.querySelectorAll("[data-view]").forEach((v) =>
-      v.classList.toggle("selected", v === el));
-  };
-});
-document.getElementById("brush").oninput = (e) => setBrush(parseInt(e.target.value, 10));
-document.querySelectorAll(".pause-btn").forEach((el) => {
-  el.onclick = () => {
-    sim.running = !sim.running;
-    document.querySelectorAll(".pause-btn").forEach((b) =>
-      b.textContent = sim.running ? "Pause" : "Play");
-  };
-});
-document.getElementById("zoomBtn").onclick = (e) => {
-  zoomed = !zoomed;
-  e.target.textContent = zoomed ? "Zoom 1x" : "Zoom 2x";
-  fitCanvas();
+// --- Sidebar + material strip ----------------------------------------------
+const ICONS = {
+  Solids: '<rect x="5" y="5" width="14" height="14"/>',
+  Powders: '<path d="M3 20c4 0 5-9 9-9s5 9 9 9z"/>',
+  Liquids: '<path d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/>',
+  Gases: '<path d="M5 19c0-3 3-3 3-6s-3-3-3-6M12 19c0-3 3-3 3-6s-3-3-3-6M19 19c0-3-3-3-3-6s3-3 3-6"/>',
+  Tools: '<path d="M14 4a4 4 0 0 0-4 5L4 15v4h4l6-6a4 4 0 0 0 5-4l-3 2-2-2z"/>',
 };
-document.querySelectorAll(".clear-btn").forEach((el) => {
-  el.onclick = () => sClear();
-});
-document.querySelectorAll(".furnace-btn, #furnaceBtn").forEach((el) => {
-  el.onclick = () => { sPresetFurnace(); hideMobileMats(); };
-});
+const TOOLS = ["Heat", "Cool", "Ignite", "Erase"];
+const SIDEBAR_CATS = [...CATEGORIES.map((c) => c.name), "Tools"];
+const stripEl = document.getElementById("strip");
+const g2el = document.getElementById("g2");
+let cat = 0; // Solids
 
-function updateReadout() {
-  if (!sIn(mouseX, mouseY)) return;
-  const i = sIdx(mouseX, mouseY);
-  const m = MATERIALS[sim.mat[i]];
-  const text = `${m.name} — ${Math.round(sim.temp[i])}°C, pressure ${sim.press[i].toFixed(1)}`;
-  document.getElementById("readout").textContent = text;
-  document.getElementById("mobileReadout").textContent = text;
+// Red border = left material, blue border = right material.
+function mark() {
+  document.querySelectorAll("#strip .el[data-i]").forEach((d) => {
+    const i = +d.dataset.i;
+    d.classList.toggle("L", i === leftMat);
+    d.classList.toggle("R", i === rightMat);
+  });
+  document.querySelectorAll("#strip .el.tool").forEach((d) => {
+    d.classList.toggle("on", d.dataset.tool === tool);
+  });
 }
+
+function strip() {
+  stripEl.innerHTML = "";
+  stripEl.scrollLeft = 0;
+  const name = SIDEBAR_CATS[cat];
+  if (name === "Tools") {
+    TOOLS.forEach((t) => {
+      const d = document.createElement("div");
+      d.className = "el tool";
+      d.textContent = t;
+      d.dataset.tool = t.toLowerCase();
+      d.onclick = () => { tool = t.toLowerCase(); mark(); };
+      stripEl.appendChild(d);
+    });
+  } else {
+    const c = CATEGORIES.find((x) => x.name === name);
+    c.items.forEach((nm) => {
+      const m = MAT[nm];
+      const d = document.createElement("div");
+      d.className = "el";
+      d.textContent = m.name;
+      d.dataset.i = m.id;
+      d.style.background = `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`;
+      const lum = 0.299 * m.color[0] + 0.587 * m.color[1] + 0.114 * m.color[2];
+      if (lum > 150) d.style.color = "#000";
+      d.title = `${m.name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
+      // Click = left material (+ paint mode). Long-press (450ms) or
+      // right-click = right material.
+      let lp, fired = false;
+      d.onpointerdown = () => {
+        fired = false;
+        lp = setTimeout(() => { fired = true; rightMat = m.id; mark(); }, 450);
+      };
+      d.onpointerup = d.onpointerleave = d.onpointercancel = () => clearTimeout(lp);
+      d.onclick = () => { if (!fired) { leftMat = m.id; tool = "paint"; mark(); } };
+      d.oncontextmenu = (ev) => { ev.preventDefault(); rightMat = m.id; mark(); };
+      stripEl.appendChild(d);
+    });
+  }
+  mark();
+}
+
+const catBtns = SIDEBAR_CATS.map((name, n) => {
+  const d = document.createElement("div");
+  d.className = "sb";
+  d.innerHTML = `<i>${S(ICONS[name])}</i><span>${name}</span>`;
+  d.onclick = () => {
+    cat = n;
+    catBtns.forEach((x, k) => x.classList.toggle("on", k === n));
+    strip();
+  };
+  g2el.appendChild(d);
+  return d;
+});
+catBtns[cat].classList.add("on");
+strip();
+
+// --- Top bar: view switcher, ambient heat, grid overlay --------------------
+const VN = ["Normal", "Temp", "Pressure"];
+const VM = ["normal", "heat", "pressure"];
+let viewIdx = 0;
+const tb = document.getElementById("top");
+tb.innerHTML = `<div class="b" id="vw">${S('<circle cx="12" cy="12" r="3"/><path d="M2 12c3-5 7-7 10-7s7 2 10 7c-3 5-7 7-10 7s-7-2-10-7z"/>')}<span style="margin-left:5px">Normal</span></div><div style="flex:1"></div><div class="b sq on" id="am">${S('<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>')}</div><div class="b sq" id="gr">${S('<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>')}</div>`;
+const vw = document.getElementById("vw");
+vw.onclick = () => {
+  viewIdx = (viewIdx + 1) % 3;
+  viewMode = VM[viewIdx];
+  vw.querySelector("span").textContent = VN[viewIdx];
+};
+const am = document.getElementById("am");
+am.onclick = () => { ambient = am.classList.toggle("on"); sim.ambient = ambient; };
+const gr = document.getElementById("gr");
+gr.onclick = () => {
+  gridOn = gr.classList.toggle("on");
+  gridEl.style.display = gridOn ? "block" : "none";
+};
+
+// --- Bottom bar: clear, furnace, brush, rect, line, pause ------------------
+const bar = document.getElementById("bar");
+const ib = (p, id) => `<div class="b sq" ${id ? `id="${id}"` : ""}>${S(p)}</div>`;
+bar.innerHTML =
+  ib('<path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/>', "clear") +
+  ib('<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>', "furnace") +
+  '<div class="b" id="br">' + (BR[bi] * 2 + 1) + "</div>" +
+  ib('<rect x="5" y="7" width="14" height="10"/>', "tr") +
+  ib('<path d="M5 19L19 5"/>', "tl") +
+  '<div style="flex:1"></div>' +
+  ib('<path d="M8 5v14M16 5v14"/>', "pause");
+document.getElementById("clear").onclick = () => sClear();
+document.getElementById("furnace").onclick = () => sPresetFurnace();
+document.getElementById("br").onclick = function () {
+  bi = (bi + 1) % BR.length;
+  this.textContent = BR[bi] * 2 + 1;
+};
+const tr = document.getElementById("tr"), tl = document.getElementById("tl");
+const syncShape = () => {
+  tr.classList.toggle("on", shape === "rect");
+  tl.classList.toggle("on", shape === "line");
+};
+tr.onclick = () => { shape = shape === "rect" ? "brush" : "rect"; syncShape(); };
+tl.onclick = () => { shape = shape === "line" ? "brush" : "line"; syncShape(); };
+const pb = document.getElementById("pause");
+pb.onclick = () => {
+  sim.running = !sim.running;
+  pb.innerHTML = S(sim.running
+    ? '<path d="M8 5v14M16 5v14"/>'
+    : '<path d="M8 5l11 7-11 7z"/>');
+};
 
 // --- Main loop ---------------------------------------------------------------
 let last = performance.now();
-let acc = 0;
+let acc = 0, frames = 0, lastFps = last;
 function frame(now) {
   const dt = Math.min(100, now - last);
   last = now;
@@ -329,11 +359,15 @@ function frame(now) {
     if (n === 3) acc = 0; // drop backlog rather than spiral
   }
   render();
+  frames++;
+  if (now - lastFps > 500) {
+    const f = frames * 1000 / (now - lastFps);
+    frames = 0; lastFps = now;
+    fpsEl.textContent = `FPS: ${Math.min(60, f).toFixed(2)} Parts: ${parts}`;
+  }
   requestAnimationFrame(frame);
 }
 
 sClear();
-setToolButton();
-markSelectedCategory();
 fitCanvas();
 requestAnimationFrame(frame);

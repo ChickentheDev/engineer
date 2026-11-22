@@ -26,6 +26,7 @@ const sim = {
   moved: new Uint8Array(SIM_W * SIM_H),    // moved-this-tick flag
   tick: 0,
   running: true,
+  ambient: true, // heat drifts back to ambient; the UI can turn it off
 };
 
 function sIdx(x, y) { return y * SIM_W + x; }
@@ -120,8 +121,9 @@ function sStep() {
           temp[i] += f; temp[j] -= f;
         }
       }
-      // Slow drift back to ambient temperature.
-      temp[i] += (AMBIENT_TEMP - temp[i]) * 0.002;
+      // Slow drift back to ambient temperature (off when the UI
+      // disables ambient heat).
+      if (sim.ambient) temp[i] += (AMBIENT_TEMP - temp[i]) * 0.002;
     }
   }
 
