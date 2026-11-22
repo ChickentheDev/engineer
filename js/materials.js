@@ -93,5 +93,12 @@ const MAT = {};
 MATERIALS.forEach((m, i) => { m.id = i; MAT[m.name] = m; });
 
 // Which materials the palette offers for painting (not the transient ones).
-const PAINTABLE = ["Wall", "Steel", "Copper", "Ceramic", "Sand", "Water",
-  "Fuel", "Wood", "Ice", "Gunpowder"];
+// Grouped into categories for the left menu: click or hover a category
+// to see its materials.
+const CATEGORIES = [
+  { name: "Solids", items: ["Wall", "Steel", "Copper", "Ceramic", "Wood", "Ice"] },
+  { name: "Powders", items: ["Sand", "Debris", "Ash", "Gunpowder"] },
+  { name: "Liquids", items: ["Water", "Fuel", "Molten Steel", "Molten Copper", "Molten Glass"] },
+  { name: "Gases", items: ["Fire", "Smoke", "Steam"] },
+];
+const PAINTABLE = CATEGORIES.flatMap((c) => c.items);

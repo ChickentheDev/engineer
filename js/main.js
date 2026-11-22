@@ -1,8 +1,9 @@
-// Engineer — Stage 1 UI: palette, tools, rendering, input.
-// Bare globals, classic script. Canvas is SIM_W x SIM_H cells, drawn
-// through an ImageData buffer so a full frame is one putImageData call.
+// Engineer — Stage 1 UI: left menu with material categories, fullscreen
+// sandbox, rendering, input. Bare globals, classic script. Canvas is
+// SIM_W x SIM_H cells, drawn through an ImageData buffer so a full frame
+// is one putImageData call.
 
-const CELL = 5; // px per cell
+const CELL = 5; // px per cell in the backing store
 const canvas = document.getElementById("sim");
 const ctx = canvas.getContext("2d");
 canvas.width = SIM_W * CELL;
@@ -14,12 +15,30 @@ viewCanvas.width = SIM_W;
 viewCanvas.height = SIM_H;
 const viewCtx = viewCanvas.getContext("2d");
 
+const stage = document.getElementById("stage");
+const sidebar = document.getElementById("sidebar");
+const backdrop = document.getElementById("backdrop");
+
 let selectedMat = 2;      // Steel
 let tool = "paint";       // paint | heat | cool | ignite | erase
 let brushSize = 4;
 let viewMode = "normal";  // normal | heat | pressure
+let zoomed = false;
 let mouseDown = false;
 let mouseX = 0, mouseY = 0;
+
+// --- Fit the sandbox to the whole screen -----------------------------------
+// Largest 5:3 box that fits the stage; zoom doubles it (stage scrolls).
+function fitCanvas() {
+  const r = stage.getBoundingClientRect();
+  const pad = 8;
+  const w = Math.max(50, r.width - pad * 2);
+  const h = Math.max(50, r.height - pad * 2);
+  const scale = Math.min(w / SIM_W, h / SIM_H) * (zoomed ? 2 : 1);
+  canvas.style.width = Math.floor(SIM_W * scale) + "px";
+  canvas.style.height = Math.floor(SIM_H * scale) + "px";
+}
+window.addEventListener("resize", fitCanvas);
 
 // --- Rendering -------------------------------------------------------------
 function tempColor(t) {
@@ -125,23 +144,70 @@ canvas.addEventListener("pointermove", (e) => {
 canvas.addEventListener("pointerup", () => { mouseDown = false; });
 canvas.addEventListener("pointerleave", () => { mouseDown = false; });
 
-// --- Palette + controls ----------------------------------------------------
-const paletteEl = document.getElementById("palette");
-PAINTABLE.forEach((name) => {
-  const m = MAT[name];
-  const b = document.createElement("button");
-  b.className = "swatch" + (m.id === selectedMat ? " selected" : "");
-  b.style.setProperty("--c", `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`);
-  b.textContent = name;
-  b.title = `${name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
-  b.onclick = () => {
-    selectedMat = m.id;
-    tool = "paint";
-    document.querySelectorAll("#palette .swatch").forEach((el) => el.classList.remove("selected"));
-    b.classList.add("selected");
-    setToolButton();
+// --- Left menu: material categories ----------------------------------------
+// One category open at a time. Click toggles; on desktop, hovering a
+// category opens it too. On phones the menu is a drawer — picking a
+// material closes it so you can paint right away.
+const catsEl = document.getElementById("categories");
+let openCat = null;
+
+function closeDrawer() {
+  sidebar.classList.remove("open");
+  backdrop.classList.remove("show");
+}
+document.getElementById("menuBtn").onclick = () => {
+  const open = sidebar.classList.toggle("open");
+  backdrop.classList.toggle("show", open);
+};
+backdrop.onclick = closeDrawer;
+
+function openCategory(catEl) {
+  document.querySelectorAll(".cat.open").forEach((el) => {
+    if (el !== catEl) el.classList.remove("open");
+  });
+  catEl.classList.add("open");
+  openCat = catEl;
+}
+
+CATEGORIES.forEach((cat, ci) => {
+  const wrap = document.createElement("div");
+  wrap.className = "cat";
+  const btn = document.createElement("button");
+  btn.className = "cat-btn";
+  btn.textContent = cat.name;
+  btn.onclick = () => {
+    if (wrap.classList.contains("open")) wrap.classList.remove("open");
+    else openCategory(wrap);
   };
-  paletteEl.appendChild(b);
+  // Hovering with a real mouse opens the category; touch taps are left
+  // to the click toggle below (a tap fires pointerenter with type "touch",
+  // and opening there would fight the toggle).
+  btn.addEventListener("pointerenter", (e) => {
+    if (e.pointerType === "mouse") openCategory(wrap);
+  });
+  const items = document.createElement("div");
+  items.className = "cat-items";
+  cat.items.forEach((name) => {
+    const m = MAT[name];
+    const b = document.createElement("button");
+    b.className = "swatch" + (m.id === selectedMat ? " selected" : "");
+    b.style.setProperty("--c", `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`);
+    b.textContent = name;
+    b.title = `${name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
+    b.onclick = () => {
+      selectedMat = m.id;
+      tool = "paint";
+      document.querySelectorAll(".swatch").forEach((el) => el.classList.remove("selected"));
+      b.classList.add("selected");
+      setToolButton();
+      closeDrawer();
+    };
+    items.appendChild(b);
+  });
+  wrap.appendChild(btn);
+  wrap.appendChild(items);
+  catsEl.appendChild(wrap);
+  if (ci === 0) openCategory(wrap); // Solids open by default
 });
 
 function setToolButton() {
@@ -168,11 +234,12 @@ document.getElementById("pauseBtn").onclick = (e) => {
   e.target.textContent = sim.running ? "Pause" : "Play";
 };
 document.getElementById("zoomBtn").onclick = (e) => {
-  const zoomed = canvas.classList.toggle("zoomed");
+  zoomed = !zoomed;
   e.target.textContent = zoomed ? "Zoom 1x" : "Zoom 2x";
+  fitCanvas();
 };
 document.getElementById("clearBtn").onclick = () => sClear();
-document.getElementById("furnaceBtn").onclick = () => sPresetFurnace();
+document.getElementById("furnaceBtn").onclick = () => { sPresetFurnace(); closeDrawer(); };
 
 function updateReadout() {
   const el = document.getElementById("readout");
@@ -200,4 +267,5 @@ function frame(now) {
 
 sClear();
 setToolButton();
+fitCanvas();
 requestAnimationFrame(frame);

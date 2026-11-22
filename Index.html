@@ -2,86 +2,150 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Engineer — voxel engine sandbox</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
   body {
     background: #0c0e12; color: #d8dce2;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 14px;
     overscroll-behavior: none;
   }
-  h1 { font-size: 20px; letter-spacing: 0.04em; }
-  h1 span { color: #8a919e; font-weight: 400; font-size: 13px; margin-left: 8px; }
-  h1 .ver { color: #5b8dd9; font-weight: 600; }
-  .wrap { max-width: 1020px; margin: 0 auto; }
-  #sim {
-    display: block; width: 100%; max-width: 1000px; aspect-ratio: 200 / 120;
-    background: #101218; border: 1px solid #2a2e38; border-radius: 6px;
-    cursor: crosshair; touch-action: none; margin: 12px 0 8px;
-    image-rendering: pixelated;
-    -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+  #app { display: flex; height: 100dvh; }
+
+  /* --- Left menu --- */
+  #sidebar {
+    width: 232px; flex: none; height: 100%;
+    background: #10131a; border-right: 1px solid #2a2e38;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 10;
   }
-  #sim.zoomed { width: 200%; max-width: none; }
-  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
-  .label { color: #8a919e; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; }
+  .brand { font-size: 19px; letter-spacing: 0.04em; font-weight: 700; padding: 2px 2px 6px; }
+  .brand .ver { color: #5b8dd9; font-weight: 600; font-size: 14px; margin-left: 4px; }
+  .side-label {
+    color: #8a919e; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-top: 6px;
+  }
   button {
     background: #1a1e27; color: #d8dce2; border: 1px solid #2a2e38;
     border-radius: 5px; padding: 6px 10px; font-size: 13px; cursor: pointer;
-    touch-action: manipulation;
+    touch-action: manipulation; text-align: left;
     -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
   }
   button:hover { border-color: #4a5060; }
   button.selected { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
-  /* Touch screens: bigger targets so fingers can actually hit them. */
-  @media (pointer: coarse) {
-    button { min-height: 44px; padding: 10px 14px; font-size: 15px; }
-    .swatch::before { width: 14px; height: 14px; }
-    input[type="range"] { min-height: 44px; }
-  }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .row button { flex: 1 1 auto; text-align: center; }
+
+  /* Category accordion: click (or hover on desktop) to see its materials. */
+  .cat { display: flex; flex-direction: column; gap: 6px; }
+  .cat-btn { width: 100%; font-weight: 600; padding: 8px 10px; }
+  .cat-btn::after { content: "▸"; float: right; color: #8a919e; }
+  .cat.open .cat-btn::after { content: "▾"; }
+  .cat-items { display: none; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .cat.open .cat-items { display: grid; }
+  .swatch { font-size: 12px; padding: 7px 8px; text-align: left; }
   .swatch::before {
     content: ""; display: inline-block; width: 11px; height: 11px;
     background: var(--c); border-radius: 2px; margin-right: 6px;
     vertical-align: -1px; border: 1px solid rgba(255,255,255,0.25);
   }
-  input[type="range"] { accent-color: #2b6cb0; }
+  input[type="range"] { accent-color: #2b6cb0; flex: 1; min-width: 0; }
   #brushVal { min-width: 18px; text-align: center; font-size: 13px; }
-  #readout { font-size: 13px; color: #9aa3b2; min-height: 18px; font-variant-numeric: tabular-nums; }
-  .hint { font-size: 12px; color: #6b7280; margin-top: 10px; line-height: 1.5; }
+  #readout {
+    font-size: 12px; color: #9aa3b2; min-height: 16px; margin-top: auto;
+    font-variant-numeric: tabular-nums; padding-top: 8px;
+    border-top: 1px solid #2a2e38;
+  }
+  .hint { font-size: 11px; color: #6b7280; line-height: 1.5; }
+
+  /* --- Fullscreen sandbox --- */
+  #stage {
+    flex: 1; min-width: 0; height: 100%; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: #0c0e12; overflow: auto;
+  }
+  #sim {
+    flex: none; background: #101218; border: 1px solid #2a2e38; border-radius: 4px;
+    cursor: crosshair; touch-action: none;
+    image-rendering: pixelated;
+    -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+  }
+  #menuBtn {
+    display: none; position: absolute; top: 10px; left: 10px; z-index: 5;
+    padding: 10px 14px; font-size: 15px; font-weight: 600;
+  }
+  #backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55); z-index: 9;
+  }
+
+  /* Touch screens: bigger targets. */
+  @media (pointer: coarse) {
+    button { min-height: 44px; padding: 10px 12px; font-size: 14px; }
+    .swatch { font-size: 13px; }
+    .swatch::before { width: 14px; height: 14px; }
+    input[type="range"] { min-height: 44px; }
+  }
+
+  /* Phones: the menu becomes a drawer over the fullscreen sandbox. */
+  @media (max-width: 700px) {
+    #sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      transform: translateX(-105%); transition: transform 0.2s ease;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    }
+    #sidebar.open { transform: none; }
+    #menuBtn { display: block; }
+    #backdrop.show { display: block; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>ENGINEER <span class="ver">v0.1</span> <span>voxel engine sandbox — Stage 1: materials, heat, pressure</span></h1>
-  <canvas id="sim"></canvas>
-  <div id="readout"></div>
-  <div class="row"><span class="label">Material</span><span id="palette" class="row" style="margin:0"></span></div>
-  <div class="row">
-    <span class="label">Tool</span>
-    <button data-tool="paint" class="selected">Paint</button>
-    <button data-tool="heat">Heat</button>
-    <button data-tool="cool">Cool</button>
-    <button data-tool="ignite">Ignite</button>
-    <button data-tool="erase">Erase</button>
-    <span class="label" style="margin-left:10px">Brush</span>
-    <input type="range" id="brush" min="1" max="10" value="4">
-    <span id="brushVal">4</span>
-  </div>
-  <div class="row">
-    <span class="label">View</span>
-    <button data-view="normal" class="selected">Normal</button>
-    <button data-view="heat">Temperature</button>
-    <button data-view="pressure">Pressure</button>
-    <span style="flex:1"></span>
-    <button id="furnaceBtn">Preset: Furnace test</button>
-    <button id="zoomBtn">Zoom 2x</button>
-    <button id="pauseBtn">Pause</button>
-    <button id="clearBtn">Clear</button>
-  </div>
-  <p class="hint">Paint materials, then heat them, ignite fuel, or light gunpowder. Steel melts at 1500°C, copper at 1085°C, ceramic takes the heat but shatters under pressure. Heat and Pressure views show the sim fields. Moving parts, airflow, and engines come in later stages.</p>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">ENGINEER <span class="ver">v0.1</span></div>
+    <div class="side-label">Materials</div>
+    <div id="categories"></div>
+    <div class="side-label">Tools</div>
+    <div class="row">
+      <button data-tool="paint" class="selected">Paint</button>
+      <button data-tool="heat">Heat</button>
+      <button data-tool="cool">Cool</button>
+      <button data-tool="ignite">Ignite</button>
+      <button data-tool="erase">Erase</button>
+    </div>
+    <div class="side-label">View</div>
+    <div class="row">
+      <button data-view="normal" class="selected">Normal</button>
+      <button data-view="heat">Temp</button>
+      <button data-view="pressure">Pressure</button>
+    </div>
+    <div class="side-label">Brush</div>
+    <div class="row">
+      <input type="range" id="brush" min="1" max="10" value="4">
+      <span id="brushVal">4</span>
+    </div>
+    <div class="row">
+      <button id="furnaceBtn">Furnace test</button>
+      <button id="zoomBtn">Zoom 2x</button>
+    </div>
+    <div class="row">
+      <button id="pauseBtn">Pause</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+    <div id="readout"></div>
+    <p class="hint">Paint materials, then heat them, ignite fuel, or light gunpowder. Steel melts at 1500°C, copper at 1085°C, ceramic takes the heat but shatters under pressure.</p>
+  </aside>
+  <main id="stage">
+    <canvas id="sim"></canvas>
+    <button id="menuBtn">☰ Menu</button>
+  </main>
 </div>
+<div id="backdrop"></div>
 <script src="js/materials.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/main.js"></script>

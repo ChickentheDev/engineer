@@ -9,8 +9,12 @@
 //
 // Bare globals, classic script, like Pressure Point — no modules, no build.
 
-const SIM_W = 200;
-const SIM_H = 120;
+// Grid size adapts to the screen: landscape gets a wide sandbox,
+// portrait (a phone held upright) gets a tall one, so the sandbox fills
+// the whole screen either way. Same cell count, just a different shape.
+const SIM_PORTRAIT = window.innerHeight > window.innerWidth;
+const SIM_W = SIM_PORTRAIT ? 120 : 200;
+const SIM_H = SIM_PORTRAIT ? 200 : 120;
 const AMBIENT_TEMP = 20;
 
 const sim = {
@@ -262,7 +266,11 @@ function sMoveGas(x, y, i) {
 // pressure climbs, and anything brittle inside shatters.
 function sPresetFurnace() {
   sClear();
-  const x0 = 70, x1 = 130, y0 = 85, y1 = 115;
+  // Chamber sized relative to the grid so the preset works in both
+  // landscape (200x120) and portrait (120x200) shapes.
+  const x0 = Math.floor(SIM_W * 0.35), x1 = Math.floor(SIM_W * 0.65);
+  const y0 = SIM_H - 35, y1 = SIM_H - 5;
+  const cx = Math.floor((x0 + x1) / 2);
   for (let x = x0; x <= x1; x++) {
     sSet(x, y1, 2);            // floor: steel
     sSet(x, y0, 2);            // roof: steel
@@ -279,7 +287,7 @@ function sPresetFurnace() {
     sSet(x, y1 - 3, 12);
   }
   // A gunpowder pile in the middle.
-  for (let x = 96; x <= 104; x++) { sSet(x, y1 - 4, 18); sSet(x, y1 - 5, 18); }
+  for (let x = cx - 4; x <= cx + 4; x++) { sSet(x, y1 - 4, 18); sSet(x, y1 - 5, 18); }
   // Light the fuel.
-  sIgnite(100, y1 - 3);
+  sIgnite(cx, y1 - 3);
 }

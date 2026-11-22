@@ -18,6 +18,12 @@ No build step, no dependencies — plain canvas + JavaScript.
   Molten Glass, Water, Steam, Fuel, Wood, Ash, Ice, Fire, Smoke, Gunpowder
 - Tools: paint, heat, cool, ignite, erase; brush size; Normal / Temperature /
   Pressure views; pause; clear; "Furnace test" preset
+- Layout: the sandbox fills the whole screen with a menu on the left —
+  Solids / Powders / Liquids / Gases categories (hover or tap to see the
+  materials), tools, views and controls below. On phones the menu is a
+  drawer: tap Menu, pick a material, it closes and you paint. The grid
+  itself adapts to the screen — 200×120 landscape, 120×200 portrait —
+  so the sandbox fills a phone held upright too.
 - Mobile: touch painting, 44px touch targets, 2x canvas zoom for precise
   finger painting; play it at https://chickenthedev.github.io/engineer/
 
