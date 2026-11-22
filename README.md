@@ -68,10 +68,80 @@ No build step, no dependencies — plain canvas + JavaScript.
   nozzles) and Vac (vacuum block — eats adjacent gas, pulls local
   pressure negative, so it sucks loose material toward it)
 
+## Overnight — radiation, compression, rocket fuel, bell nozzle, rotors
+
+- **Radiation:** Plutonium/Uranium/Polonium emit a radiation field
+  (new Radiation view, green; Rad readout in the cursor info). The field
+  diffuses through air, is absorbed as heat by dense materials, and is
+  blocked by shielding — Lead (new, melts 327°C) is the best shield.
+  Radioactive cells spit neutrons, which zip around heating what they
+  touch and beta-decay into protons + electrons. Piles decay over
+  minutes (Polonium → Lead, Uranium → Polonium, Plutonium → Uranium);
+  real half-lives are far too long to watch, so game decay is compressed
+  ~1000x. Neutrons/protons/electrons come from decay only — not paintable.
+- **Compression:** squeezing a gas heats it, expanding it cools it
+  (adiabatic, T ∝ P^0.286, ambient = 10 units = 1 atm). A compressor
+  heats intake air; a nozzle bell cools exhaust. One real bug found by
+  testing: pressure history must travel with a material when it swaps
+  cells, or moving gas reads phantom pressure jumps and heats/cools by
+  hundreds of degrees — fixed in sSwap/sSet.
+- **Rocket fuel:** RP-1 (rocket kerosene) and Liquid Hydrogen (boils
+  at -253°C into Hydrogen gas, the lightest gas in the game). Burning
+  any fuel next to liquid oxygen runs at ~3000°C (hydrogen/oxygen
+  ~3200°C) with a much bigger pressure spike — that is what makes
+  RP-1/LOX and LH2/LOX chambers work. Ordinary oxygen-gas burning
+  stays at 1200°C.
+- **Bell nozzle + thrust:** a registered nozzle (chamber, throat,
+  exit, direction) computes thrust from real isentropic relations in
+  SI units (1 cell = 0.1 m): flow chokes at the throat (Mach 1),
+  expands supersonically in the bell (exit Mach ~2.6 for an 8:2 bell),
+  and ambient pressure decides over/under-expansion — a wide bell at
+  sea level is over-expanded and loses pressure thrust. Thrust scales
+  with chamber pressure; a blocked throat gives zero thrust. The
+  exhaust plume is shoved down the bell (up to 2 cells/tick) so it
+  visibly accelerates. Thrust readout in the FPS line (kN) while an
+  engine fires. Player-built nozzles still flow gas through pressure,
+  but only registered nozzles (presets) get a thrust meter.
+- **Rotors:** paint a **Bearing** (Devices) and put solids against it
+  — they bind into a wheel that spins on pressure and liquid weight
+  (a paddle wheel / turbine / fan). Torque comes from pressure and
+  hydrostatic push on the exposed blade faces; moving blades push air
+  ahead of them and suck it in behind, so a spinning fan actually
+  moves air. The demo turbine (`sDemoTurbine`, Library → Turbine Demo)
+  is a steel paddle wheel in a duct with a steady wind feed on its
+  upper half — a symmetric feed gives zero net torque, so only the
+  top half is driven. Erasing a bearing or a blade kills that rotor
+  (the next bind pass rebinds whatever is left). A blade that melts or
+  burns breaks its rotor the same way.
+- **Presets library (top-bar Library button):** five ready-made sims
+  that actually run — **Furnace Test** (sealed chamber, light it and
+  watch pressure climb), **I4 Engine + Turbo** (four chambers fire
+  1-3-4-2, exhaust spools a turbo that pressurises the intake),
+  **Rocket** (RP-1 + LOX tanks drain as it burns, ~7.8 kN peak thrust),
+  **Turbofan** (fan + bypass duct around a compressor-burner-turbine
+  core, twin nozzles), **Turbine Demo**. Honest limit: no
+  pistons/crankshaft — the sim has no linear moving parts, so the I4's
+  chambers ARE the cylinders and the firing order + turbo spool are
+  real while the crank motion is not modelled. Clear stops the active
+  preset.
+- **Real-world tolerances (Stage E):** every material's conductivity,
+  pressure tolerance, melt/freeze point, density and ignition point
+  was checked against real data and corrected where it was wrong —
+  gold no longer out-conducts copper (it never did in real life),
+  ceramic conducts ~5× faster than the old value, steam is now
+  lighter than nitrogen and oxygen so it sorts above them, molten
+  metals freeze ~10 °C below their melt point. Three new molten
+  radioactives (Molten Polonium, Molten Plutonium, Molten Uranium;
+  67 materials total) — a polonium pile now self-heats past its own
+  254 °C melt point with no outside heat. Bug fix: molten glass
+  used to freeze into sand; it freezes into glass now. Radiation is
+  now a separate property from self-heating (radEmission): uranium
+  barely self-heats in real life (0.05 °C/tick) but is still a strong
+  radiation source. Gas is propane (LPG, ignites 470 °C); titanium
+  is the Ti-6Al-4V alloy.
+
 ## Next stages
 
-- **Stage 2 (continued):** thrust — a measurable push from exhaust
-  (needs something to push; lands with moving parts), Pump device,
-  Airstream (steady duct flow, alongside Wind)
-- **Stage 3 — moving parts:** bearings, locked pivots, rotating assemblies
-  (a fan shape with a locked centre spins when airflow hits it)
+- **Devices:** Pump, Airstream (steady duct flow, alongside Wind)
+- **Electrical system:** conductivity, Batt/Spark, logic gates,
+  IC designer + processor design

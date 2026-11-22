@@ -88,6 +88,12 @@ function pressureColor(p) {
   return [Math.round(20 + 235 * f), Math.round(24 + 200 * f), Math.round(32 + 223 * f)];
 }
 
+function radColor(r) {
+  // No radiation = dark; hot zone = bright green.
+  const f = Math.max(0, Math.min(1, r / 20));
+  return [Math.round(20 + 40 * f), Math.round(24 + 220 * f), Math.round(32 + 60 * f)];
+}
+
 function render() {
   const d = img.data;
   parts = 0;
@@ -100,6 +106,8 @@ function render() {
       [r, g, b] = tempColor(sim.temp[i]);
     } else if (viewMode === "pressure") {
       [r, g, b] = pressureColor(sim.press[i]);
+    } else if (viewMode === "radiation") {
+      [r, g, b] = radColor(sim.rad[i]);
     } else {
       [r, g, b] = m.color;
       // Hot solids glow.
@@ -135,6 +143,10 @@ function applyCell(x, y, matId) {
     if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17 && cur !== 51 && cur !== 52) return;
     sSet(x, y, matId);
   } else if (tool === "erase") {
+    // Kill the rotor first — once the bearing/blade cell is gone there
+    // is nothing left to find. (Kills the whole rotor; a later bind
+    // pass rebinds whatever solid is still touching the bearing.)
+    if (typeof sKillRotorAt === "function") sKillRotorAt(x, y);
     if (sim.mat[i] !== 1) sSet(x, y, 0);
   } else if (tool === "heat") {
     sim.temp[i] += 60;
@@ -195,7 +207,7 @@ function updateInfo() {
   if (!sIn(mx, my)) { infoEl.innerHTML = "&nbsp;"; return; }
   const i = sIdx(mx, my);
   const m = MATERIALS[sim.mat[i]];
-  infoEl.innerHTML = `${m.name}, Temp: ${sim.temp[i].toFixed(0)}°C, Pressure: ${sim.press[i].toFixed(1)}<br>#${i}, X:${mx} Y:${my}`;
+  infoEl.innerHTML = `${m.name}, Temp: ${sim.temp[i].toFixed(0)}°C, Pressure: ${sim.press[i].toFixed(1)}, Rad: ${sim.rad[i].toFixed(1)}<br>#${i}, X:${mx} Y:${my}`;
 }
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -307,14 +319,14 @@ catBtns[cat].classList.add("on");
 strip();
 
 // --- Top bar: view switcher, ambient heat, grid overlay --------------------
-const VN = ["Normal", "Temp", "Pressure"];
-const VM = ["normal", "heat", "pressure"];
+const VN = ["Normal", "Temp", "Pressure", "Radiation"];
+const VM = ["normal", "heat", "pressure", "radiation"];
 let viewIdx = 0;
 const tb = document.getElementById("top");
 tb.innerHTML = `<div class="b" id="vw">${S('<circle cx="12" cy="12" r="3"/><path d="M2 12c3-5 7-7 10-7s7 2 10 7c-3 5-7 7-10 7s-7-2-10-7z"/>')}<span style="margin-left:5px">Normal</span></div><div style="flex:1"></div><div class="b sq on" id="am">${S('<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>')}</div><div class="b sq" id="gr">${S('<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>')}</div>`;
 const vw = document.getElementById("vw");
 vw.onclick = () => {
-  viewIdx = (viewIdx + 1) % 3;
+  viewIdx = (viewIdx + 1) % VN.length;
   viewMode = VM[viewIdx];
   vw.querySelector("span").textContent = VN[viewIdx];
 };
@@ -373,7 +385,15 @@ function frame(now) {
   if (sim.running) {
     acc += dt;
     let n = 0;
-    while (acc >= 33 && n < 3) { sStep(); acc -= 33; n++; }
+    while (acc >= 33 && n < 3) {
+      sStep();
+      sStepRotors(); // rotors spin once per sim tick, after the sim
+      sPresetTick(); // active preset's per-tick work (firing, feeds)
+      acc -= 33; n++;
+    }
+    // Rebind rotors every 15 ticks (mirrors Sam's bindRotors cadence):
+    // picks up newly built wheels and rebinds after a blade breaks.
+    if (n > 0 && sim.tick % 15 === 0) sBindRotors();
     if (n === 3) acc = 0; // drop backlog rather than spiral
   }
   render();
@@ -381,11 +401,13 @@ function frame(now) {
   if (now - lastFps > 500) {
     const f = frames * 1000 / (now - lastFps);
     frames = 0; lastFps = now;
-    fpsEl.textContent = `FPS: ${Math.min(60, f).toFixed(2)} Parts: ${parts}`;
+    fpsEl.textContent = `FPS: ${Math.min(60, f).toFixed(2)} Parts: ${parts}` +
+      (sim.thrust > 10 ? ` Thrust: ${(sim.thrust / 1000).toFixed(1)} kN` : "");
   }
   requestAnimationFrame(frame);
 }
 
 sClear();
 fitCanvas();
+sInitLibraryUI(); // Library button in the top bar (presets.js)
 requestAnimationFrame(frame);
