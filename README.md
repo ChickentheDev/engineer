@@ -20,10 +20,12 @@ No build step, no dependencies — plain canvas + JavaScript.
   Pressure views; pause; clear; "Furnace test" preset
 - Layout: the sandbox fills the whole screen with a menu on the left —
   Solids / Powders / Liquids / Gases categories (hover or tap to see the
-  materials), tools, views and controls below. On phones the menu is a
-  drawer: tap Menu, pick a material, it closes and you paint. The grid
-  itself adapts to the screen — 200×120 landscape, 120×200 portrait —
-  so the sandbox fills a phone held upright too.
+  materials), tools, views and controls below. On phones there is no menu
+  button: the four categories are buttons at the bottom left, tapping one
+  pops its materials up in a strip above, and brush size is − / + buttons
+  right next to them. The grid is 480×270 landscape / 270×480 portrait
+  (canvas backing 1920×1080 / 1080×1920), and the sim skips idle air cells
+  in its hot loops so it runs faster than the old 200×120 grid did.
 - Mobile: touch painting, 44px touch targets, 2x canvas zoom for precise
   finger painting; play it at https://chickenthedev.github.io/engineer/
 

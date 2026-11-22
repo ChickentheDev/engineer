@@ -1,9 +1,10 @@
-// Engineer — Stage 1 UI: left menu with material categories, fullscreen
-// sandbox, rendering, input. Bare globals, classic script. Canvas is
+// Engineer — Stage 1 UI: left menu with material categories (desktop),
+// bottom bar with category buttons (phones), fullscreen sandbox,
+// rendering, input. Bare globals, classic script. Canvas is
 // SIM_W x SIM_H cells, drawn through an ImageData buffer so a full frame
 // is one putImageData call.
 
-const CELL = 5; // px per cell in the backing store
+const CELL = 4; // px per cell in the backing store (480x270 -> 1920x1080)
 const canvas = document.getElementById("sim");
 const ctx = canvas.getContext("2d");
 canvas.width = SIM_W * CELL;
@@ -15,22 +16,21 @@ viewCanvas.width = SIM_W;
 viewCanvas.height = SIM_H;
 const viewCtx = viewCanvas.getContext("2d");
 
-const stage = document.getElementById("stage");
-const sidebar = document.getElementById("sidebar");
-const backdrop = document.getElementById("backdrop");
+const canvasWrap = document.getElementById("canvasWrap");
 
 let selectedMat = 2;      // Steel
 let tool = "paint";       // paint | heat | cool | ignite | erase
-let brushSize = 4;
+let brushSize = 8;
 let viewMode = "normal";  // normal | heat | pressure
 let zoomed = false;
 let mouseDown = false;
 let mouseX = 0, mouseY = 0;
 
 // --- Fit the sandbox to the whole screen -----------------------------------
-// Largest 5:3 box that fits the stage; zoom doubles it (stage scrolls).
+// Largest box that fits the canvas area, keeping the grid's aspect;
+// zoom doubles it (the area scrolls).
 function fitCanvas() {
-  const r = stage.getBoundingClientRect();
+  const r = canvasWrap.getBoundingClientRect();
   const pad = 8;
   const w = Math.max(50, r.width - pad * 2);
   const h = Math.max(50, r.height - pad * 2);
@@ -144,25 +144,36 @@ canvas.addEventListener("pointermove", (e) => {
 canvas.addEventListener("pointerup", () => { mouseDown = false; });
 canvas.addEventListener("pointerleave", () => { mouseDown = false; });
 
-// --- Left menu: material categories ----------------------------------------
+// --- Shared selection --------------------------------------------------------
+function selectMaterial(m) {
+  selectedMat = m.id;
+  tool = "paint";
+  document.querySelectorAll(".swatch").forEach((el) =>
+    el.classList.toggle("selected", el.dataset.mat === String(m.id)));
+  setToolButton();
+  markSelectedCategory();
+}
+
+function makeSwatch(name) {
+  const m = MAT[name];
+  const b = document.createElement("button");
+  b.className = "swatch" + (m.id === selectedMat ? " selected" : "");
+  b.dataset.mat = m.id;
+  b.style.setProperty("--c", `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`);
+  b.textContent = name;
+  b.title = `${name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
+  b.onclick = () => { selectMaterial(m); hideMobileMats(); };
+  return b;
+}
+
+// --- Left menu: material categories (desktop) --------------------------------
 // One category open at a time. Click toggles; on desktop, hovering a
-// category opens it too. On phones the menu is a drawer — picking a
-// material closes it so you can paint right away.
+// category with a real mouse opens it too.
 const catsEl = document.getElementById("categories");
 let openCat = null;
 
-function closeDrawer() {
-  sidebar.classList.remove("open");
-  backdrop.classList.remove("show");
-}
-document.getElementById("menuBtn").onclick = () => {
-  const open = sidebar.classList.toggle("open");
-  backdrop.classList.toggle("show", open);
-};
-backdrop.onclick = closeDrawer;
-
 function openCategory(catEl) {
-  document.querySelectorAll(".cat.open").forEach((el) => {
+  document.querySelectorAll("#categories .cat.open").forEach((el) => {
     if (el !== catEl) el.classList.remove("open");
   });
   catEl.classList.add("open");
@@ -180,36 +191,83 @@ CATEGORIES.forEach((cat, ci) => {
     else openCategory(wrap);
   };
   // Hovering with a real mouse opens the category; touch taps are left
-  // to the click toggle below (a tap fires pointerenter with type "touch",
+  // to the click toggle (a tap fires pointerenter with type "touch",
   // and opening there would fight the toggle).
   btn.addEventListener("pointerenter", (e) => {
     if (e.pointerType === "mouse") openCategory(wrap);
   });
   const items = document.createElement("div");
   items.className = "cat-items";
-  cat.items.forEach((name) => {
-    const m = MAT[name];
-    const b = document.createElement("button");
-    b.className = "swatch" + (m.id === selectedMat ? " selected" : "");
-    b.style.setProperty("--c", `rgb(${m.color[0]},${m.color[1]},${m.color[2]})`);
-    b.textContent = name;
-    b.title = `${name} — melt ${m.meltPoint ?? "—"}°C, pressure tol ${m.pressureTol ?? "—"}`;
-    b.onclick = () => {
-      selectedMat = m.id;
-      tool = "paint";
-      document.querySelectorAll(".swatch").forEach((el) => el.classList.remove("selected"));
-      b.classList.add("selected");
-      setToolButton();
-      closeDrawer();
-    };
-    items.appendChild(b);
-  });
+  cat.items.forEach((name) => items.appendChild(makeSwatch(name)));
   wrap.appendChild(btn);
   wrap.appendChild(items);
   catsEl.appendChild(wrap);
   if (ci === 0) openCategory(wrap); // Solids open by default
 });
 
+// --- Bottom bar: category buttons (phones) -----------------------------------
+// No menu button, no drawer: the four categories are buttons, bottom
+// left. Tapping one pops its materials up in a strip above; tapping a
+// material picks it and the strip closes.
+const mobileMats = document.getElementById("mobileMats");
+const mobileCatsRow = document.getElementById("mobileCatsRow");
+let openMobileCat = null;
+
+function hideMobileMats() {
+  mobileMats.classList.remove("show");
+  document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) => b.classList.remove("open"));
+  openMobileCat = null;
+  fitCanvas();
+}
+
+function markSelectedCategory() {
+  const cat = CATEGORIES.find((c) => c.items.some((n) => MAT[n].id === selectedMat));
+  document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) => {
+    b.classList.toggle("selected", cat && b.textContent === cat.name);
+  });
+}
+
+CATEGORIES.forEach((cat) => {
+  const btn = document.createElement("button");
+  btn.className = "cat-btn";
+  btn.textContent = cat.name;
+  btn.onclick = () => {
+    if (openMobileCat === cat.name) { hideMobileMats(); return; }
+    mobileMats.innerHTML = "";
+    cat.items.forEach((name) => mobileMats.appendChild(makeSwatch(name)));
+    mobileMats.classList.add("show");
+    document.querySelectorAll("#mobileCatsRow .cat-btn").forEach((b) =>
+      b.classList.toggle("open", b === btn));
+    openMobileCat = cat.name;
+    fitCanvas();
+  };
+  mobileCatsRow.appendChild(btn);
+});
+
+// Brush stepper: − / + buttons right next to the categories, thumb-sized.
+const minusBtn = document.createElement("button");
+minusBtn.className = "brush-step";
+minusBtn.textContent = "−";
+const brushValMobile = document.createElement("span");
+brushValMobile.id = "mobileBrushVal";
+brushValMobile.textContent = brushSize;
+const plusBtn = document.createElement("button");
+plusBtn.className = "brush-step";
+plusBtn.textContent = "+";
+function setBrush(v) {
+  brushSize = Math.max(1, Math.min(24, v));
+  document.getElementById("brushVal").textContent = brushSize;
+  brushValMobile.textContent = brushSize;
+  const slider = document.getElementById("brush");
+  if (slider) slider.value = brushSize;
+}
+minusBtn.onclick = () => setBrush(brushSize - 2);
+plusBtn.onclick = () => setBrush(brushSize + 2);
+mobileCatsRow.appendChild(minusBtn);
+mobileCatsRow.appendChild(brushValMobile);
+mobileCatsRow.appendChild(plusBtn);
+
+// --- Tools, views, actions (both layouts share data attributes) --------------
 function setToolButton() {
   document.querySelectorAll("[data-tool]").forEach((el) => {
     el.classList.toggle("selected", el.dataset.tool === tool);
@@ -225,28 +283,33 @@ document.querySelectorAll("[data-view]").forEach((el) => {
       v.classList.toggle("selected", v === el));
   };
 });
-document.getElementById("brush").oninput = (e) => {
-  brushSize = parseInt(e.target.value, 10);
-  document.getElementById("brushVal").textContent = brushSize;
-};
-document.getElementById("pauseBtn").onclick = (e) => {
-  sim.running = !sim.running;
-  e.target.textContent = sim.running ? "Pause" : "Play";
-};
+document.getElementById("brush").oninput = (e) => setBrush(parseInt(e.target.value, 10));
+document.querySelectorAll(".pause-btn").forEach((el) => {
+  el.onclick = () => {
+    sim.running = !sim.running;
+    document.querySelectorAll(".pause-btn").forEach((b) =>
+      b.textContent = sim.running ? "Pause" : "Play");
+  };
+});
 document.getElementById("zoomBtn").onclick = (e) => {
   zoomed = !zoomed;
   e.target.textContent = zoomed ? "Zoom 1x" : "Zoom 2x";
   fitCanvas();
 };
-document.getElementById("clearBtn").onclick = () => sClear();
-document.getElementById("furnaceBtn").onclick = () => { sPresetFurnace(); closeDrawer(); };
+document.querySelectorAll(".clear-btn").forEach((el) => {
+  el.onclick = () => sClear();
+});
+document.querySelectorAll(".furnace-btn, #furnaceBtn").forEach((el) => {
+  el.onclick = () => { sPresetFurnace(); hideMobileMats(); };
+});
 
 function updateReadout() {
-  const el = document.getElementById("readout");
-  if (!sIn(mouseX, mouseY)) { el.textContent = ""; return; }
+  if (!sIn(mouseX, mouseY)) return;
   const i = sIdx(mouseX, mouseY);
   const m = MATERIALS[sim.mat[i]];
-  el.textContent = `${m.name} — ${Math.round(sim.temp[i])}°C, pressure ${sim.press[i].toFixed(1)}`;
+  const text = `${m.name} — ${Math.round(sim.temp[i])}°C, pressure ${sim.press[i].toFixed(1)}`;
+  document.getElementById("readout").textContent = text;
+  document.getElementById("mobileReadout").textContent = text;
 }
 
 // --- Main loop ---------------------------------------------------------------
@@ -267,5 +330,6 @@ function frame(now) {
 
 sClear();
 setToolButton();
+markSelectedCategory();
 fitCanvas();
 requestAnimationFrame(frame);

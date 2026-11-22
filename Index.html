@@ -15,7 +15,7 @@
   }
   #app { display: flex; height: 100dvh; }
 
-  /* --- Left menu --- */
+  /* --- Left menu (desktop) --- */
   #sidebar {
     width: 232px; flex: none; height: 100%;
     background: #10131a; border-right: 1px solid #2a2e38;
@@ -65,8 +65,13 @@
   /* --- Fullscreen sandbox --- */
   #stage {
     flex: 1; min-width: 0; height: 100%; position: relative;
+    display: flex; flex-direction: column;
+    background: #0c0e12; overflow: hidden;
+  }
+  #canvasWrap {
+    flex: 1; min-height: 0; position: relative;
     display: flex; align-items: center; justify-content: center;
-    background: #0c0e12; overflow: auto;
+    overflow: auto;
   }
   #sim {
     flex: none; background: #101218; border: 1px solid #2a2e38; border-radius: 4px;
@@ -74,14 +79,28 @@
     image-rendering: pixelated;
     -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
   }
-  #menuBtn {
-    display: none; position: absolute; top: 10px; left: 10px; z-index: 5;
-    padding: 10px 14px; font-size: 15px; font-weight: 600;
+
+  /* --- Bottom bar (phones): categories are buttons, bottom left --- */
+  #mobileBar {
+    display: none; flex: none; flex-direction: column; gap: 6px;
+    background: #10131a; border-top: 1px solid #2a2e38; padding: 8px;
   }
-  #backdrop {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.55); z-index: 9;
+  #mobileMats {
+    display: none; flex-direction: row; gap: 6px; overflow-x: auto;
+    padding-bottom: 2px; scrollbar-width: none;
   }
+  #mobileMats.show { display: flex; }
+  #mobileMats .swatch { flex: none; min-width: 76px; font-size: 13px; padding: 8px; }
+  #mobileCatsRow { display: flex; gap: 6px; align-items: stretch; }
+  #mobileCatsRow .cat-btn { flex: 1 1 0; text-align: center; padding: 8px 4px; font-size: 12px; }
+  #mobileCatsRow .cat-btn::after { content: ""; }
+  #mobileCatsRow .cat-btn.open { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  .brush-step { flex: none; width: 44px; text-align: center; font-size: 18px; padding: 4px 0; }
+  #mobileBrushVal { flex: none; min-width: 22px; text-align: center; font-size: 13px; align-self: center; }
+  #mobileToolsRow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  #mobileToolsRow button { flex: none; text-align: center; padding: 8px 12px; font-size: 12px; }
+  #mobileToolsRow .sep { flex: none; width: 1px; background: #2a2e38; margin: 4px 2px; }
+  #mobileReadout { display: none; font-size: 11px; color: #9aa3b2; font-variant-numeric: tabular-nums; min-height: 14px; }
 
   /* Touch screens: bigger targets. */
   @media (pointer: coarse) {
@@ -91,16 +110,11 @@
     input[type="range"] { min-height: 44px; }
   }
 
-  /* Phones: the menu becomes a drawer over the fullscreen sandbox. */
+  /* Phones: sidebar away, bottom bar on. */
   @media (max-width: 700px) {
-    #sidebar {
-      position: fixed; left: 0; top: 0; bottom: 0;
-      transform: translateX(-105%); transition: transform 0.2s ease;
-      box-shadow: 4px 0 24px rgba(0,0,0,0.5);
-    }
-    #sidebar.open { transform: none; }
-    #menuBtn { display: block; }
-    #backdrop.show { display: block; }
+    #sidebar { display: none; }
+    #mobileBar { display: flex; }
+    #mobileReadout { display: block; }
   }
 </style>
 </head>
@@ -126,28 +140,48 @@
     </div>
     <div class="side-label">Brush</div>
     <div class="row">
-      <input type="range" id="brush" min="1" max="10" value="4">
-      <span id="brushVal">4</span>
+      <input type="range" id="brush" min="1" max="24" value="8">
+      <span id="brushVal">8</span>
     </div>
     <div class="row">
       <button id="furnaceBtn">Furnace test</button>
       <button id="zoomBtn">Zoom 2x</button>
     </div>
     <div class="row">
-      <button id="pauseBtn">Pause</button>
-      <button id="clearBtn">Clear</button>
+      <button class="pause-btn">Pause</button>
+      <button class="clear-btn">Clear</button>
     </div>
     <div id="readout"></div>
     <p class="hint">Paint materials, then heat them, ignite fuel, or light gunpowder. Steel melts at 1500°C, copper at 1085°C, ceramic takes the heat but shatters under pressure.</p>
   </aside>
   <main id="stage">
-    <canvas id="sim"></canvas>
-    <button id="menuBtn">☰ Menu</button>
+    <div id="canvasWrap">
+      <canvas id="sim"></canvas>
+    </div>
+    <div id="mobileBar">
+      <div id="mobileMats"></div>
+      <div id="mobileCatsRow"></div>
+      <div id="mobileToolsRow">
+        <button data-tool="paint" class="selected">Paint</button>
+        <button data-tool="heat">Heat</button>
+        <button data-tool="cool">Cool</button>
+        <button data-tool="ignite">Ignite</button>
+        <button data-tool="erase">Erase</button>
+        <span class="sep"></span>
+        <button data-view="normal" class="selected">Normal</button>
+        <button data-view="heat">Temp</button>
+        <button data-view="pressure">Pressure</button>
+        <span class="sep"></span>
+        <button class="pause-btn">Pause</button>
+        <button class="clear-btn">Clear</button>
+        <button class="furnace-btn">Furnace</button>
+      </div>
+      <div id="mobileReadout"></div>
+    </div>
   </main>
 </div>
-<div id="backdrop"></div>
-<script src="js/materials.js?v=2"></script>
-<script src="js/sim.js?v=2"></script>
-<script src="js/main.js?v=2"></script>
+<script src="js/materials.js?v=3"></script>
+<script src="js/sim.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
 </body>
 </html>

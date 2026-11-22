@@ -9,12 +9,13 @@
 //
 // Bare globals, classic script, like Pressure Point — no modules, no build.
 
-// Grid size adapts to the screen: landscape gets a wide sandbox,
-// portrait (a phone held upright) gets a tall one, so the sandbox fills
-// the whole screen either way. Same cell count, just a different shape.
+// Grid size adapts to the screen: landscape gets a wide 16:9 sandbox,
+// portrait (a phone held upright) gets a tall 9:16 one, so the sandbox
+// fills the whole screen either way. The canvas backing is 1920x1080
+// (landscape) / 1080x1920 (portrait) at CELL = 4.
 const SIM_PORTRAIT = window.innerHeight > window.innerWidth;
-const SIM_W = SIM_PORTRAIT ? 120 : 200;
-const SIM_H = SIM_PORTRAIT ? 200 : 120;
+const SIM_W = SIM_PORTRAIT ? 270 : 480;
+const SIM_H = SIM_PORTRAIT ? 480 : 270;
 const AMBIENT_TEMP = 20;
 
 const sim = {
@@ -94,21 +95,30 @@ function sStep() {
 
   // 1. Heat conduction — exchange with right and down neighbours only
   // (symmetric update, so each pair is handled once).
+  // Fast path: an air-air pair both sitting at ambient temperature
+  // exchanges nothing worth computing, so skip it.
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
-      const k1 = MATERIALS[mat[i]].conductivity;
+      const ti = temp[i];
+      const airAmbient = mat[i] === 0 && ti > 19.9 && ti < 20.1;
       if (x + 1 < W) {
         const j = i + 1;
-        const k = (k1 + MATERIALS[mat[j]].conductivity) * 0.5 * 0.08;
-        const f = k * (temp[j] - temp[i]);
-        temp[i] += f; temp[j] -= f;
+        const tj = temp[j];
+        if (!(airAmbient && mat[j] === 0 && tj > 19.9 && tj < 20.1)) {
+          const k = (MATERIALS[mat[i]].conductivity + MATERIALS[mat[j]].conductivity) * 0.5 * 0.08;
+          const f = k * (tj - ti);
+          temp[i] += f; temp[j] -= f;
+        }
       }
       if (y + 1 < H) {
         const j = i + W;
-        const k = (k1 + MATERIALS[mat[j]].conductivity) * 0.5 * 0.08;
-        const f = k * (temp[j] - temp[i]);
-        temp[i] += f; temp[j] -= f;
+        const tj = temp[j];
+        if (!(airAmbient && mat[j] === 0 && tj > 19.9 && tj < 20.1)) {
+          const k = (MATERIALS[mat[i]].conductivity + MATERIALS[mat[j]].conductivity) * 0.5 * 0.08;
+          const f = k * (tj - ti);
+          temp[i] += f; temp[j] -= f;
+        }
       }
       // Slow drift back to ambient temperature.
       temp[i] += (AMBIENT_TEMP - temp[i]) * 0.002;
@@ -116,27 +126,38 @@ function sStep() {
   }
 
   // 2. Pressure diffusion + decay.
+  // Fast path: a pair of cells both at exactly zero pressure diffuses
+  // nothing. Tiny pressures snap to zero in the decay step so this
+  // skip keeps working once a blast has faded.
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
       if (x + 1 < W) {
         const j = i + 1;
-        const f = 0.06 * (press[j] - press[i]);
-        press[i] += f; press[j] -= f;
+        if (press[i] !== 0 || press[j] !== 0) {
+          const f = 0.06 * (press[j] - press[i]);
+          press[i] += f; press[j] -= f;
+        }
       }
       if (y + 1 < H) {
         const j = i + W;
-        const f = 0.06 * (press[j] - press[i]);
-        press[i] += f; press[j] -= f;
+        if (press[i] !== 0 || press[j] !== 0) {
+          const f = 0.06 * (press[j] - press[i]);
+          press[i] += f; press[j] -= f;
+        }
       }
-      press[i] *= 0.99;
+      if (press[i] > -0.01 && press[i] < 0.01) press[i] = 0;
+      else press[i] *= 0.99;
     }
   }
 
   // 3. Material transitions.
+  // Fast path: air cells have no transitions at all (fire and smoke are
+  // their own materials), so skip them outright.
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
+      if (mat[i] === 0) continue;
       const m = MATERIALS[mat[i]];
       const t = temp[i];
       if (m.meltPoint !== undefined && t > m.meltPoint && m.meltTo !== undefined) {
@@ -180,6 +201,9 @@ function sStep() {
   }
 
   // 4. Movement — bottom-up so falling things don't get processed twice.
+  // Fast path: air never moves on its own — it only gets displaced when
+  // something denser falls into it (handled by the swap in the falling
+  // cell's move), so skip air cells outright. Same for walls and solids.
   sim.moved.fill(0);
   const leftFirst = (sim.tick % 2) === 0;
   for (let y = H - 1; y >= 0; y--) {
@@ -187,7 +211,9 @@ function sStep() {
       const x = leftFirst ? xi : (W - 1 - xi);
       const i = y * W + x;
       if (sim.moved[i]) continue;
-      const m = MATERIALS[mat[i]];
+      const id = mat[i];
+      if (id === 0 || id === 1) continue;
+      const m = MATERIALS[id];
       if (m.cat === "powder") sMovePowder(x, y, i);
       else if (m.cat === "liquid") sMoveLiquid(x, y, i);
       else if (m.cat === "gas") sMoveGas(x, y, i);
