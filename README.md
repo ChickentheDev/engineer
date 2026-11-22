@@ -17,7 +17,16 @@ No build step, no dependencies — plain canvas + JavaScript.
 - Pressure: a diffusing pressure field; combustion and explosions raise it
 - Materials with heat tolerance, pressure tolerance, conductivity, density:
   Wall, Steel, Molten Steel, Copper, Molten Copper, Ceramic, Debris, Sand,
-  Molten Glass, Water, Steam, Fuel, Wood, Ash, Ice, Fire, Smoke, Gunpowder
+  Molten Glass, Water, Steam, Fuel, Wood, Ash, Ice, Fire, Smoke, Gunpowder,
+  Iron, Molten Iron, Tungsten, Molten Tungsten, Gold, Molten Gold, Titanium,
+  Molten Titanium, Bronze, Molten Bronze, Cobalt, Molten Cobalt, Quartz,
+  Glass, Insulation, Graphite, Titanium Carbide, Tungsten Carbide,
+  Plutonium, Uranium, Polonium, Deuterium, Liquid Nitrogen, Nitrogen,
+  Liquid Oxygen, Oxygen, Liquid Helium, Helium, Methane, Diesel, Gas,
+  Toxic Gas (51 total, 50 paintable + Air)
+- Radioactive powders (Plutonium, Uranium, Polonium) heat themselves;
+  cryo liquids (Liquid Nitrogen / Oxygen / Helium) boil far below zero
+  into their gases, which condense back when cooled enough
 - Tools: paint, heat, cool, ignite, erase; rect and line tools; brush
   size cycler; Normal / Temperature / Pressure views; ambient-heat and
   grid-overlay toggles; FPS counter; pause; clear; "Furnace test" preset

@@ -43,6 +43,15 @@ function sSet(x, y, id) {
   else if (id === 3) sim.temp[i] = 1500;                              // molten steel
   else if (id === 5) sim.temp[i] = 1100;                              // molten copper
   else if (id === 9) sim.temp[i] = 1600;                              // molten glass
+  else if (id === 20) sim.temp[i] = 1550;                             // molten iron
+  else if (id === 22) sim.temp[i] = 3450;                             // molten tungsten
+  else if (id === 24) sim.temp[i] = 1080;                             // molten gold
+  else if (id === 26) sim.temp[i] = 1680;                             // molten titanium
+  else if (id === 28) sim.temp[i] = 970;                              // molten bronze
+  else if (id === 30) sim.temp[i] = 1510;                             // molten cobalt
+  else if (id === 41) sim.temp[i] = -196;                             // liquid nitrogen
+  else if (id === 43) sim.temp[i] = -183;                             // liquid oxygen
+  else if (id === 45) sim.temp[i] = -269;                             // liquid helium
   else if (id === 17) { sim.temp[i] = 120; sim.life[i] = m.life; }   // smoke
   else sim.temp[i] = AMBIENT_TEMP;
   sim.press[i] = 0;
@@ -183,6 +192,9 @@ function sStep() {
         sSet(x, y, m.breakTo); temp[i] = t;
         press[i] *= 0.5;
       }
+      // Radioactive materials heat themselves (and everything around
+      // them, through conduction).
+      if (m.selfHeat) temp[i] += m.selfHeat;
       // Fire burns out into smoke; smoke fades into air.
       if (mat[i] === 16) {
         press[i] += 0.4; // combustion pressurises the cell
