@@ -11,11 +11,11 @@
 
 // Grid size adapts to the screen: landscape gets a wide 16:9 sandbox,
 // portrait (a phone held upright) gets a tall 9:16 one, so the sandbox
-// fills the whole screen either way. The canvas backing is 1920x1080
-// (landscape) / 1080x1920 (portrait) at CELL = 4.
+// fills the whole screen either way. 800 cells across the long side
+// (canvas backing 1600x900 / 900x1600 at CELL = 2).
 const SIM_PORTRAIT = window.innerHeight > window.innerWidth;
-const SIM_W = SIM_PORTRAIT ? 270 : 480;
-const SIM_H = SIM_PORTRAIT ? 480 : 270;
+const SIM_W = SIM_PORTRAIT ? 450 : 800;
+const SIM_H = SIM_PORTRAIT ? 800 : 450;
 const AMBIENT_TEMP = 20;
 
 const sim = {
@@ -267,22 +267,30 @@ function sMoveLiquid(x, y, i) {
 
 function sMoveGas(x, y, i) {
   const W = SIM_W;
-  // Gases rise: swap upward into a denser fluid, or sideways.
-  const above = (y - 1 >= 0) ? i - W : -1;
-  if (above >= 0) {
-    const ma = MATERIALS[sim.mat[above]];
-    if ((ma.cat === "liquid" || ma.cat === "powder" || ma.cat === "gas")
-        && ma.density > MATERIALS[sim.mat[i]].density) {
-      sSwap(i, above); return;
+  const myD = MATERIALS[sim.mat[i]].density;
+  // Gases rise with random sideways wander instead of straight columns:
+  // try diagonal-up, straight up, then sideways, with a random left/right
+  // lean each move. Sideways, a gas also diffuses through other gases of
+  // equal or lower density (that's what makes smoke billow instead of
+  // stacking into lines). Rising into a denser fluid still works as
+  // buoyancy; air is always displaceable.
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const cands = [[dir, -1], [-dir, -1], [0, -1], [dir, 0], [-dir, 0]];
+  for (const [dx, dy] of cands) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx >= W || ny < 0 || ny >= SIM_H) continue;
+    const j = ny * W + nx;
+    const tm = sim.mat[j];
+    if (tm === 0) {
+      if (sim.mat[i] !== 0) { sSwap(i, j); return; }
+    } else {
+      const t = MATERIALS[tm];
+      if (dy === -1 && (t.cat === "liquid" || t.cat === "powder" || t.cat === "gas")
+        && t.density > myD) { sSwap(i, j); return; }
+      if (dy === 0 && t.cat === "gas" && t.density <= myD && Math.random() < 0.5) {
+        sSwap(i, j); return;
+      }
     }
-    if (sim.mat[above] === 0 && sim.mat[i] !== 0) { sSwap(i, above); return; }
-  }
-  const dir = (sim.tick + x + y) % 2 === 0 ? -1 : 1;
-  for (const dx of [dir, -dir]) {
-    const nx = x + dx;
-    if (nx < 0 || nx >= W) continue;
-    const j = y * W + nx;
-    if (sim.mat[j] === 0 && sim.mat[i] !== 0) { sSwap(i, j); return; }
   }
 }
 

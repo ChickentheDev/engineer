@@ -23,9 +23,14 @@ No build step, no dependencies — plain canvas + JavaScript.
   materials), tools, views and controls below. On phones there is no menu
   button: the four categories are buttons at the bottom left, tapping one
   pops its materials up in a strip above, and brush size is − / + buttons
-  right next to them. The grid is 480×270 landscape / 270×480 portrait
-  (canvas backing 1920×1080 / 1080×1920), and the sim skips idle air cells
+  right next to them. The grid is 800×450 landscape / 450×800 portrait
+  (canvas backing 1600×900 / 900×1600), and the sim skips idle air cells
   in its hot loops so it runs faster than the old 200×120 grid did.
+- Smoke and gases move randomly (diagonal rise + sideways diffusion
+  through other gases) instead of stacking into straight lines.
+- Paint only fills empty space (air) or transient gas (fire, smoke,
+  steam) — painting over something you built no longer removes it;
+  use Erase to clear a material first.
 - Mobile: touch painting, 44px touch targets, 2x canvas zoom for precise
   finger painting; play it at https://chickenthedev.github.io/engineer/
 

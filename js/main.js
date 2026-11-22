@@ -4,7 +4,7 @@
 // SIM_W x SIM_H cells, drawn through an ImageData buffer so a full frame
 // is one putImageData call.
 
-const CELL = 4; // px per cell in the backing store (480x270 -> 1920x1080)
+const CELL = 2; // px per cell in the backing store (800x450 -> 1600x900)
 const canvas = document.getElementById("sim");
 const ctx = canvas.getContext("2d");
 canvas.width = SIM_W * CELL;
@@ -20,7 +20,7 @@ const canvasWrap = document.getElementById("canvasWrap");
 
 let selectedMat = 2;      // Steel
 let tool = "paint";       // paint | heat | cool | ignite | erase
-let brushSize = 8;
+let brushSize = 12;
 let viewMode = "normal";  // normal | heat | pressure
 let zoomed = false;
 let mouseDown = false;
@@ -113,7 +113,11 @@ function applyTool(cx, cy) {
       if (Math.hypot(x - cx, y - cy) > r + 0.5) continue;
       const i = sIdx(x, y);
       if (tool === "paint") {
-        if (sim.mat[i] === 1) continue; // don't paint over Wall
+        // Paint only fills empty space (air) or transient gas (fire, smoke,
+        // steam). It never eats something you already built — use Erase to
+        // clear a material first.
+        const cur = sim.mat[i];
+        if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17) continue;
         sSet(x, y, selectedMat);
       } else if (tool === "erase") {
         if (sim.mat[i] !== 1) sSet(x, y, 0);
@@ -255,7 +259,7 @@ const plusBtn = document.createElement("button");
 plusBtn.className = "brush-step";
 plusBtn.textContent = "+";
 function setBrush(v) {
-  brushSize = Math.max(1, Math.min(24, v));
+  brushSize = Math.max(1, Math.min(32, v));
   document.getElementById("brushVal").textContent = brushSize;
   brushValMobile.textContent = brushSize;
   const slider = document.getElementById("brush");
