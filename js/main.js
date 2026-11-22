@@ -41,11 +41,21 @@ let down = false, btn = 0, mx = -1, my = -1, ax = 0, ay = 0, lx = 0, ly = 0;
 let parts = 0;
 
 // --- Fit the sandbox to the stage, keeping the grid's aspect -------------
+// The grid is sized to the stage's aspect at load, so the canvas fills
+// the stage exactly (no black border). If the window was resized after
+// load and the aspects no longer match, fall back to aspect-fit.
 function fitCanvas() {
   const r = stage.getBoundingClientRect();
-  const scale = Math.min(r.width / SIM_W, r.height / SIM_H);
-  const w = Math.max(50, Math.floor(SIM_W * scale));
-  const h = Math.max(50, Math.floor(SIM_H * scale));
+  const gridAspect = SIM_W / SIM_H;
+  const stageAspect = r.width / r.height;
+  let w, h;
+  if (Math.abs(gridAspect - stageAspect) / stageAspect < 0.01) {
+    w = Math.floor(r.width); h = Math.floor(r.height);
+  } else {
+    const scale = Math.min(r.width / SIM_W, r.height / SIM_H);
+    w = Math.max(50, Math.floor(SIM_W * scale));
+    h = Math.max(50, Math.floor(SIM_H * scale));
+  }
   box.style.width = w + "px"; box.style.height = h + "px";
   canvas.style.width = w + "px"; canvas.style.height = h + "px";
   ov.style.width = w + "px"; ov.style.height = h + "px";

@@ -12,13 +12,33 @@
 //
 // Bare globals, classic script, like Pressure Point — no modules, no build.
 
-// Grid size adapts to the screen: landscape gets a wide 16:9 sandbox,
-// portrait (a phone held upright) gets a tall 9:16 one, so the sandbox
-// fills the whole screen either way. 800 cells across the long side
-// (canvas backing 1600x900 / 900x1600 at CELL = 2).
-const SIM_PORTRAIT = window.innerHeight > window.innerWidth;
-const SIM_W = SIM_PORTRAIT ? 450 : 800;
-const SIM_H = SIM_PORTRAIT ? 800 : 450;
+// Grid size fills the stage exactly: the grid's aspect matches the
+// stage's aspect (the area left after the sidebar, top bar, strip and
+// bottom bar), so the canvas fills the stage with no black border.
+// The long side stays ~800 cells. Measured from the real stage element
+// (which already accounts for the sidebar width, safe-area insets and
+// the bars); falls back to the window size if the stage isn't in the
+// DOM (e.g. a test harness loading the sim standalone).
+function stageSize() {
+  const el = document.getElementById("stage");
+  if (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 100 && r.height > 100) return [r.width, r.height];
+  }
+  const sideW = window.innerWidth <= 560 ? 38 : 104;
+  return [Math.max(200, window.innerWidth - sideW), Math.max(200, window.innerHeight - 92)];
+}
+const [STAGE_W, STAGE_H] = stageSize();
+const STAGE_ASPECT = STAGE_W / STAGE_H;
+let SIM_W, SIM_H;
+if (STAGE_ASPECT >= 1) {
+  SIM_W = 800;
+  SIM_H = Math.max(200, Math.min(800, Math.round(800 / STAGE_ASPECT)));
+} else {
+  SIM_H = 800;
+  SIM_W = Math.max(200, Math.min(800, Math.round(800 * STAGE_ASPECT)));
+}
+const SIM_PORTRAIT = STAGE_ASPECT < 1;
 const AMBIENT_TEMP = 20;
 
 const sim = {
