@@ -53,8 +53,25 @@ No build step, no dependencies — plain canvas + JavaScript.
   into their gases, which condense back when cooled enough
 - New categories: Solids 18, Powders 7, Liquids 15, Gases 10
 
+## Stage 2 — engines (in progress)
+
+- **Airflow:** a strong pressure gradient now shoves loose material
+  (powders, liquids, gases) toward lower pressure — explosions blow
+  debris downwind, combustion chambers vent through their openings
+- **Oxygen combustion:** fire next to Oxygen burns at 1200°C and
+  pressurises harder; the oxygen is consumed into Exhaust gas, which
+  cools into Smoke
+- **Wind:** a paintable gas that flows in the global wind direction
+  (bottom-bar arrow button cycles → ↓ ← ↑); wind pressurises the air
+  ahead of it, pushing loose material downwind. Fades after a while
+- **Devices:** Nozzle (heat-proof engine block for chambers and
+  nozzles) and Vac (vacuum block — eats adjacent gas, pulls local
+  pressure negative, so it sucks loose material toward it)
+
 ## Next stages
 
-- **Stage 2 — engines:** combustion chambers, nozzles, thrust, airflow
+- **Stage 2 (continued):** thrust — a measurable push from exhaust
+  (needs something to push; lands with moving parts), Pump device,
+  Airstream (steady duct flow, alongside Wind)
 - **Stage 3 — moving parts:** bearings, locked pivots, rotating assemblies
   (a fan shape with a locked centre spins when airflow hits it)

@@ -1,9 +1,10 @@
-// Engineer — Stage 1 UI, powder-ui transplant (Sam's redesign).
+// Engineer — Stage 1 UI + Stage 2 (engines: wind, devices), powder-ui
+// transplant (Sam's redesign).
 // Right icon sidebar, bottom material strip with left/right select,
-// bottom icon bar (clear, furnace, brush, rect, line, pause),
-// top bar (view, ambient heat, grid), FPS + cursor readout.
+// bottom icon bar (clear, furnace, brush, wind direction, rect, line,
+// pause), top bar (view, ambient heat, grid), FPS + cursor readout.
 // The sim itself is untouched (js/sim.js, js/materials.js) —
-// same 800x450 grid, same 19 materials, same phase changes.
+// same 800x450 grid, same phase changes, now 55 materials.
 // Bare globals, classic script.
 
 const CELL = 2; // px per cell in the backing store (800x450 -> 1600x900)
@@ -121,7 +122,7 @@ function applyCell(x, y, matId) {
   const i = sIdx(x, y);
   if (tool === "paint") {
     const cur = sim.mat[i];
-    if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17) return;
+    if (cur !== 0 && cur !== 11 && cur !== 16 && cur !== 17 && cur !== 51 && cur !== 52) return;
     sSet(x, y, matId);
   } else if (tool === "erase") {
     if (sim.mat[i] !== 1) sSet(x, y, 0);
@@ -219,6 +220,7 @@ const ICONS = {
   Liquids: '<path d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/>',
   Gases: '<path d="M5 19c0-3 3-3 3-6s-3-3-3-6M12 19c0-3 3-3 3-6s-3-3-3-6M19 19c0-3-3-3-3-6s3-3 3-6"/>',
   Tools: '<path d="M14 4a4 4 0 0 0-4 5L4 15v4h4l6-6a4 4 0 0 0 5-4l-3 2-2-2z"/>',
+  Devices: '<path d="M4 4h16l-6 7v6l-4 2v-8z"/>',
 };
 const TOOLS = ["Heat", "Cool", "Ignite", "Erase"];
 const SIDEBAR_CATS = [...CATEGORIES.map((c) => c.name), "Tools"];
@@ -314,13 +316,15 @@ gr.onclick = () => {
   gridEl.style.display = gridOn ? "block" : "none";
 };
 
-// --- Bottom bar: clear, furnace, brush, rect, line, pause ------------------
+// --- Bottom bar: clear, furnace, brush, wind direction, rect, line, pause --
 const bar = document.getElementById("bar");
 const ib = (p, id) => `<div class="b sq" ${id ? `id="${id}"` : ""}>${S(p)}</div>`;
+const WIND_ARROWS = ["→", "↓", "←", "↑"]; // 0 right, 1 down, 2 left, 3 up
 bar.innerHTML =
   ib('<path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/>', "clear") +
   ib('<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>', "furnace") +
   '<div class="b" id="br">' + (BR[bi] * 2 + 1) + "</div>" +
+  '<div class="b" id="wind" title="Wind direction">' + WIND_ARROWS[sim.windDir] + "</div>" +
   ib('<rect x="5" y="7" width="14" height="10"/>', "tr") +
   ib('<path d="M5 19L19 5"/>', "tl") +
   '<div style="flex:1"></div>' +
@@ -330,6 +334,10 @@ document.getElementById("furnace").onclick = () => sPresetFurnace();
 document.getElementById("br").onclick = function () {
   bi = (bi + 1) % BR.length;
   this.textContent = BR[bi] * 2 + 1;
+};
+document.getElementById("wind").onclick = function () {
+  sim.windDir = (sim.windDir + 1) % 4;
+  this.textContent = WIND_ARROWS[sim.windDir];
 };
 const tr = document.getElementById("tr"), tl = document.getElementById("tl");
 const syncShape = () => {

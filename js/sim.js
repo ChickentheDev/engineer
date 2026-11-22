@@ -1,11 +1,14 @@
-// Engineer — Stage 1 simulation core.
+// Engineer — Stage 1 simulation core + Stage 2 (engines: airflow,
+// oxygen combustion, wind, vacuum).
 // A Powder Toy-style cellular automaton on a fixed grid.
 // Each cell has a material, a temperature (Celsius) and a pressure
 // (sim units; ambient air = 0). Per tick:
 //   1. heat conduction between neighbours + slow cooling to ambient
 //   2. pressure diffusion + decay
 //   3. material transitions (melt / freeze / boil / condense / ignite / shatter)
-//   4. movement: powders fall, liquids flow, gases rise
+//      + fire/oxygen combustion, wind pressure, vacuum, life expiry
+//   4. movement: pressure pushes loose material downwind, then powders
+//      fall, liquids flow, gases rise (wind flows in the wind direction)
 //
 // Bare globals, classic script, like Pressure Point — no modules, no build.
 
@@ -27,6 +30,7 @@ const sim = {
   tick: 0,
   running: true,
   ambient: true, // heat drifts back to ambient; the UI can turn it off
+  windDir: 0, // global wind direction: 0 right, 1 down, 2 left, 3 up
 };
 
 function sIdx(x, y) { return y * SIM_W + x; }
@@ -52,6 +56,8 @@ function sSet(x, y, id) {
   else if (id === 41) sim.temp[i] = -196;                             // liquid nitrogen
   else if (id === 43) sim.temp[i] = -183;                             // liquid oxygen
   else if (id === 45) sim.temp[i] = -269;                             // liquid helium
+  else if (id === 51) { sim.temp[i] = 300; sim.life[i] = m.life; }   // exhaust
+  else if (id === 52) sim.life[i] = m.life;                           // wind
   else if (id === 17) { sim.temp[i] = 120; sim.life[i] = m.life; }   // smoke
   else sim.temp[i] = AMBIENT_TEMP;
   sim.press[i] = 0;
@@ -207,9 +213,51 @@ function sStep() {
           const j = sIdx(nx, ny);
           if (MATERIALS[mat[j]].igniteTemp !== undefined) temp[j] += 200;
         }
+        // Oxygen-fed combustion: fire next to oxygen burns hotter and
+        // pressurises the chamber — the oxygen is consumed into exhaust.
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (!sIn(nx, ny)) continue;
+          const j = sIdx(nx, ny);
+          if (mat[j] === 44) {
+            sSet(nx, ny, 51); temp[j] = 300;
+            press[i] += 1.0; temp[i] = 1200;
+            break;
+          }
+        }
         if (--life[i] <= 0 || temp[i] < 300) { sSet(x, y, 17); temp[i] = 150; }
       } else if (mat[i] === 17) {
         if (--life[i] <= 0) { sSet(x, y, 0); temp[i] = AMBIENT_TEMP; }
+      } else if (MATERIALS[mat[i]].life) {
+        // Other short-lived materials (exhaust, wind): on expiry they
+        // become their lifeTo material, or plain air.
+        if (--life[i] <= 0) {
+          const fm = MATERIALS[mat[i]];
+          if (fm.lifeTo !== undefined) { sSet(x, y, fm.lifeTo); temp[i] = t; }
+          else { sSet(x, y, 0); temp[i] = AMBIENT_TEMP; }
+        }
+      }
+      // Wind pushes air ahead of it: each wind cell pressurises the
+      // cell downwind, and the pressure-push in step 4 shoves loose
+      // material along with it.
+      if (mat[i] === 52) {
+        const [dx, dy] = [[1, 0], [0, 1], [-1, 0], [0, -1]][sim.windDir];
+        const nx = x + dx, ny = y + dy;
+        if (sIn(nx, ny)) {
+          const j = sIdx(nx, ny);
+          press[j] = Math.min(40, press[j] + 2);
+        }
+      }
+      // Vac: eats adjacent gas and pulls the local pressure down.
+      if (mat[i] === 54) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (!sIn(nx, ny)) continue;
+          const j = sIdx(nx, ny);
+          if (mat[j] !== 0 && MATERIALS[mat[j]].cat === "gas") sSet(nx, ny, 0);
+          press[j] = Math.max(-10, press[j] - 0.5);
+        }
+        press[i] = Math.max(-10, press[i] - 0.5);
       }
     }
   }
@@ -228,6 +276,12 @@ function sStep() {
       const id = mat[i];
       if (id === 0 || id === 1) continue;
       const m = MATERIALS[id];
+      // Airflow: a strong pressure gradient shoves loose material toward
+      // lower pressure — this is what makes combustion chambers vent,
+      // explosions blow debris downwind, and wind push things along.
+      if (m.cat === "powder" || m.cat === "liquid" || m.cat === "gas") {
+        if (sPressurePush(x, y, i)) continue;
+      }
       if (m.cat === "powder") sMovePowder(x, y, i);
       else if (m.cat === "liquid") sMoveLiquid(x, y, i);
       else if (m.cat === "gas") sMoveGas(x, y, i);
@@ -279,9 +333,45 @@ function sMoveLiquid(x, y, i) {
   }
 }
 
+// Push a loose cell one step toward lower pressure, if the gradient is
+// strong enough. Returns true if the cell moved.
+function sPressurePush(x, y, i) {
+  const W = SIM_W, H = SIM_H, press = sim.press;
+  const gx = (x > 0 ? press[i - 1] : 0) - (x < W - 1 ? press[i + 1] : 0);
+  const gy = (y > 0 ? press[i - W] : 0) - (y < H - 1 ? press[i + W] : 0);
+  if (Math.abs(gx) < 1.5 && Math.abs(gy) < 1.5) return false;
+  if (Math.random() >= 0.7) return false;
+  const nx = x + (gx > 1.5 ? 1 : gx < -1.5 ? -1 : 0);
+  const ny = y + (gy > 1.5 ? 1 : gy < -1.5 ? -1 : 0);
+  if (nx < 0 || nx >= W || ny < 0 || ny >= H) return false;
+  const j = ny * W + nx;
+  if (sim.mat[j] !== 0) return false; // only into empty space
+  sSwap(i, j);
+  return true;
+}
+
 function sMoveGas(x, y, i) {
   const W = SIM_W;
   const myD = MATERIALS[sim.mat[i]].density;
+  // Wind flows in the global wind direction first, then diffuses like
+  // any other gas. It moves by flowing forward, not by swapping: the
+  // pressure it built up in front of it stays in front of it (a swap
+  // would drag that pressure back behind the wind, and nothing
+  // downwind would ever get pushed).
+  if (sim.mat[i] === 52) {
+    const [dx, dy] = [[1, 0], [0, 1], [-1, 0], [0, -1]][sim.windDir];
+    const nx = x + dx, ny = y + dy;
+    if (nx >= 0 && nx < W && ny >= 0 && ny < SIM_H) {
+      const j = ny * W + nx;
+      if (sim.mat[j] === 0) {
+        sim.mat[j] = 52; sim.temp[j] = sim.temp[i]; sim.life[j] = sim.life[i];
+        sim.moved[j] = 1;
+        sim.mat[i] = 0; sim.temp[i] = AMBIENT_TEMP; sim.press[i] = 0; sim.life[i] = 0;
+        sim.moved[i] = 1;
+        return;
+      }
+    }
+  }
   // Gases rise with random sideways wander instead of straight columns:
   // try diagonal-up, straight up, then sideways, with a random left/right
   // lean each move. Sideways, a gas also diffuses through other gases of

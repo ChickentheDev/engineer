@@ -1,4 +1,4 @@
-// Engineer — material definitions (Stage 1).
+// Engineer — material definitions (Stages 1–2).
 // Every material carries the properties the sim needs:
 //   heat tolerance (meltPoint), pressure tolerance (pressureTol),
 //   thermal conductivity, density (drives falling / buoyancy),
@@ -193,6 +193,22 @@ const MATERIALS = [
   // id 50 — Toxic Gas (heavy green gas)
   { name: "Toxic Gas", color: [80, 160, 60], cat: "gas", density: 0.06,
     conductivity: 0.05 },
+
+  // --- Stage 2 — engines: combustion, airflow, nozzles ---
+  // id 51 — Exhaust (hot combustion product; cools into smoke)
+  { name: "Exhaust", color: [90, 80, 75], cat: "gas", density: 0.08,
+    conductivity: 0.1, life: 200, lifeTo: 17 },
+  // id 52 — Wind (air in motion; flows in the global wind direction,
+  // which the UI button cycles; fades after a while)
+  { name: "Wind", color: [220, 235, 255], cat: "gas", density: 0.005,
+    conductivity: 0.05, life: 200 },
+  // id 53 — Nozzle (heat-proof engine block for chambers and nozzles)
+  { name: "Nozzle", color: [200, 160, 90], cat: "solid", density: 8,
+    conductivity: 0.5, meltPoint: 3000, pressureTol: 300 },
+  // id 54 — Vac (vacuum block: eats adjacent gas, pulls pressure down —
+  // a vacuum sucks loose material toward it)
+  { name: "Vac", color: [50, 60, 90], cat: "solid", density: 8,
+    conductivity: 0.5, meltPoint: 3000, pressureTol: 300 },
 ];
 
 // Lookup helpers.
@@ -206,6 +222,7 @@ const CATEGORIES = [
   { name: "Solids", items: ["Wall", "Steel", "Copper", "Iron", "Tungsten", "Gold", "Titanium", "Bronze", "Cobalt", "Ceramic", "Quartz", "Glass", "Insulation", "Graphite", "Titanium Carbide", "Tungsten Carbide", "Wood", "Ice"] },
   { name: "Powders", items: ["Sand", "Debris", "Ash", "Gunpowder", "Plutonium", "Uranium", "Polonium"] },
   { name: "Liquids", items: ["Water", "Fuel", "Diesel", "Molten Steel", "Molten Copper", "Molten Glass", "Molten Iron", "Molten Tungsten", "Molten Gold", "Molten Titanium", "Molten Bronze", "Molten Cobalt", "Liquid Nitrogen", "Liquid Oxygen", "Liquid Helium"] },
-  { name: "Gases", items: ["Fire", "Smoke", "Steam", "Methane", "Gas", "Deuterium", "Nitrogen", "Oxygen", "Helium", "Toxic Gas"] },
+  { name: "Gases", items: ["Fire", "Smoke", "Steam", "Exhaust", "Wind", "Methane", "Gas", "Deuterium", "Nitrogen", "Oxygen", "Helium", "Toxic Gas"] },
+  { name: "Devices", items: ["Nozzle", "Vac"] },
 ];
 const PAINTABLE = CATEGORIES.flatMap((c) => c.items);
